@@ -1,0 +1,122 @@
+---
+title: "reflect:// deep links: navigate and capture from any app"
+sidebarTitle: "Deep Links"
+description: "Use reflect:// URLs to open notes, search, or append text to today's daily note from scripts, launchers, and other apps — on Mac and iOS."
+---
+
+The desktop app registers the `reflect://` URL scheme, so other apps, scripts, and launchers can navigate the running Reflect instance — or cold-launch it — and hand it quick captures. A deep link is an address for an app state, not a remote control: it mirrors the in-app route model one-to-one and deliberately cannot execute arbitrary commands or modify arbitrary notes.
+
+## Navigation links
+
+Use these URLs to jump straight to a specific view or note from any launcher, shortcut, or script:
+
+```text
+reflect://today                     the daily stream, on today
+reflect://daily/2026-07-01          a specific day (ISO YYYY-MM-DD)
+reflect://note/<target>             a note — see resolution order below
+reflect://search?q=meeting          the search screen, query prefilled
+reflect://tasks                     the tasks view
+```
+
+### `<target>` resolution order
+
+When you write `reflect://note/<target>`, Reflect resolves `<target>` in the following order — the frontmatter `id` comes first because it survives renames:
+
+1. **Frontmatter `id`** (ULID — carried by notes since Plan 17)
+2. **Calendar-valid ISO date** → that daily note
+3. **Graph-relative path** (e.g. `notes/foo.md`)
+4. **Title match** (case-folded)
+5. **Alias match** (`aliases:` frontmatter, or a v1 subject-alias segment of a `//` title like `Charlotte MacCaw // Mum`)
+
+When more than one note matches, Reflect resolves to the **first path alphabetically** — the same rule the CLI uses. Links always resolve in the **open graph**; there is no cross-graph addressing.
+
+### Copying a deep link
+
+Open the ⌘K palette and press `⌥⌘L` to copy the deep link for the current note. Reflect puts the **id form** on the clipboard, so the link survives any future rename. For notes that predate ids, copying mints an `id:` field in the note's frontmatter — this happens exactly once, on first copy. Daily notes are always addressed by **date form** rather than id.
+
+Human-written links such as `reflect://note/Project%20X` work too, resolved via title matching.
+
+## Write links
+
+Three verbs let external tools append a single line to today's daily note:
+
+```text
+reflect://append?text=call%20the%20bank    a plain bullet on today's daily note
+reflect://checkbox?text=pack%20a%20bag     a square checkbox on today's daily note
+reflect://task?text=buy%20milk             a round task on today's daily note (shows in Tasks)
+```
+
+<CardGroup cols={3}>
+  <Card title="append" icon="list">
+    Writes a plain `- bullet` to today's daily note.
+  </Card>
+  <Card title="checkbox" icon="square-check">
+    Writes a plain square `- [ ]` checkbox — stays on the daily note only, does not appear in the Tasks view.
+  </Card>
+  <Card title="task" icon="circle-check">
+    Writes Reflect's round (`+`) task — appears in the **Tasks** view and is visible app-wide.
+  </Card>
+</CardGroup>
+
+<Note>
+  Write links are intentionally narrow: **one line of plain text, appended to today's daily note only**. There is no `reflect://` URL that writes to an arbitrary note, creates a note with content, or runs a command. The payload is whitespace-folded to a single line — no markdown-block smuggling — and capped at 10 000 characters.
+</Note>
+
+### How writes are processed
+
+Write links do not splice text directly into your notes. Instead the payload lands in the **capture inbox** (`.reflect/inbox/`) — the same audited drain that browser captures use — and the desktop app drains it into the daily note. This means:
+
+- **Deduplication is exact**: if a drain crashes and re-runs, the same line won't appear twice.
+- **Status feedback**: the app surfaces "Added to today", "Checkbox added to today", or "Task added to today" on the status line so you can confirm the capture landed.
+- **Security boundary**: any web page can attempt a `reflect://` URL, so keeps the write surface deliberately minimal.
+
+## Platform notes
+
+<CardGroup cols={2}>
+  <Card title="macOS" icon="apple">
+    The scheme is registered at **bundle** time via `CFBundleURLTypes`. Running `pnpm tauri dev` does **not** register it — use a built bundle to exercise real OS-delivered links.
+
+    All flavors (Reflect, Reflect Beta, Reflect Dev) register `reflect://`; when several are installed, macOS picks one handler.
+
+    A link that arrives during a cold launch or while the graph chooser is open is **buffered** and fires once the graph opens.
+
+    A `reflect://` link clicked *inside* the app — in a note body, chat, or backlink snippet — dispatches straight to the in-app handler with no OS round-trip. This means it works in dev builds and can never land on a different installed flavor.
+  </Card>
+  <Card title="Windows & Linux" icon="windows">
+    The single-instance plugin forwards a second launch's URL to the already-running instance and focuses it. macOS handles this natively.
+  </Card>
+</CardGroup>
+
+<Warning>
+  On iOS, only `reflect://record-audio` is supported — it is the entry point for the lock-screen widget that starts an audio memo. The full navigation grammar (`reflect://today`, `reflect://note/…`, etc.) is **not available on mobile** and is deliberately absent from the iOS URL handler.
+</Warning>
+
+## Relationship to the CLI
+
+The scheme and the [CLI](/cli/overview) are complementary — the CLI reads and resolves for scripts; the scheme navigates and captures.
+
+`reflect open <note>` bridges the two: it resolves the note exactly like `reflect show` and then hands the URL to the OS opener. It prefers the most durable address:
+
+| Note type | URL form used |
+|---|---|
+| Daily note | `reflect://daily/YYYY-MM-DD` |
+| Note with frontmatter `id` | `reflect://note/<ulid>` |
+| All other notes | `reflect://note/<graph-relative-path>` |
+
+The CLI never writes, so it never mints ids — "Copy deep link" (`⌥⌘L`) in the app does that.
+
+```bash
+# Navigate to a note in the app
+reflect open "Project X"
+
+# Print the deep link URL without launching the app
+reflect open "Project X" --print
+
+# Print the URL as JSON
+reflect open "Project X" --print --json
+```
+
+```jsonc
+// reflect open "Project X" --print --json
+{ "path": "notes/project-x.md", "url": "reflect://note/01hzy3…", "launched": false }
+```

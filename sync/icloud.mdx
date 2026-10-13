@@ -1,0 +1,77 @@
+---
+title: "Sync Reflect notes across Apple devices with iCloud Drive"
+sidebarTitle: "iCloud Drive"
+description: "Use iCloud Drive to keep your Reflect graph in sync across Mac and iPhone. Notes stay plain Markdown files — iCloud moves them between devices automatically."
+---
+
+Reflect's iCloud sync keeps your graph as ordinary Markdown files inside Apple's iCloud Drive container. There is no Reflect-hosted server in the path — iCloud moves the files between your devices, and Reflect handles merging when two devices edit the same note while apart.
+
+## Where your graph lives
+
+When iCloud sync is on, your graph lives inside the app's iCloud Drive container. You can see it in **Files → iCloud Drive → Reflect** on iPhone and in **Finder → iCloud Drive → Reflect** on Mac. Notes remain plain `.md` files — readable and editable in any Markdown editor even when Reflect isn't open.
+
+## Turning on iCloud sync
+
+<Steps>
+  <Step title="During onboarding">
+    Both Mac and iPhone offer iCloud as the recommended option on first launch. The app lists any graphs already in the container so you can open an existing one or create a new one.
+  </Step>
+  <Step title="Moving an existing local graph">
+    Go to **Settings → iCloud sync → Move graph to iCloud…**. Reflect copies every file into the iCloud container and verifies each one. Once the move is confirmed, the graph reopens from its new location. Your original folder stays on disk, untouched, as a recovery copy.
+  </Step>
+</Steps>
+
+<Warning>
+  iCloud sync and git backup are mutually exclusive. A graph syncs through iCloud Drive **or** a git remote — never both. Two sync engines operating on the same files fight each other, and a `.git` directory must never ride a file-sync provider (it causes object-store corruption). Moving a graph to iCloud disconnects its git backup first. As a belt-and-braces guard, `.git/` and `.reflect/` are always marked local-only and kept off iCloud entirely.
+</Warning>
+
+## Conflict resolution
+
+When both devices edit the same note while apart, Reflect resolves the conflict itself wherever it is safe to do so. The resolution ladder runs in order and is fully deterministic — both devices applying the same ladder independently produce identical bytes, so they converge without a further round-trip.
+
+<Steps>
+  <Step title="Same content (or only whitespace differs)">
+    Nothing to do. The note is already identical on both devices.
+  </Step>
+  <Step title="Different parts of the note">
+    Reflect performs a three-way merge over the note's last synced state. Each device's changes are woven together without touching the other's edits.
+  </Step>
+  <Step title="Only metadata differs">
+    For example, a note pinned on the Mac and marked private on the iPhone. Metadata keys are merged key-by-key; neither device's values are discarded.
+  </Step>
+  <Step title="Both devices appended (the daily-note case)">
+    The most common conflict. Both tails are kept in chronological order, oldest first. If iCloud created a `2026-07-04 2.md` because both devices were offline, those two files fold back into one the same way.
+  </Step>
+  <Step title="Genuinely overlapping edits">
+    The note keeps both versions between labeled conflict markers and opens in a protected state with a **Needs review** banner. The banner's buttons name the specific devices ("Keep 'Alex's MacBook Pro'") so you can choose the version you want. Nothing is ever discarded silently.
+  </Step>
+</Steps>
+
+### Conflict archive
+
+Before Reflect writes any resolution, every involved version is saved under `.reflect/conflict-archive/<note-path>/`. Archives are kept for approximately **90 days**, with up to **20 versions per note**, so even a bad merge is recoverable.
+
+<Note>
+  Binary assets (images, attachments) are never text-merged. When a conflict involves a binary file, the other device's copy lands alongside the original as `name (conflict).ext` — both files are preserved.
+</Note>
+
+## What stays off iCloud
+
+<CardGroup cols={2}>
+  <Card title=".reflect/" icon="database">
+    The live SQLite search index and local runtime data. Marked local-only with `com.apple.fileprovider.ignore#P` — rebuilds automatically and does not need to sync.
+  </Card>
+  <Card title=".git/" icon="code-branch">
+    The git backup repository. Also marked local-only. A `.git` directory must never travel through a file-sync provider — doing so corrupts the object store.
+  </Card>
+</CardGroup>
+
+Both directories live inside the graph folder but are excluded from iCloud upload by a `com.apple.fileprovider.ignore#P` extended attribute set at the OS level. They carry no identity in iCloud's provider database and are invisible to other devices.
+
+## Planned improvements
+
+A few capabilities are scoped for future work:
+
+- **AI-assisted conflict resolution** — the merge ladder already produces the base/local/remote triple a BYOK provider would consume. Notes marked `private: true` will be hard-blocked from it when it ships.
+- A richer diff view beyond raw conflict markers in the protected note.
+- Upload/download progress in the sync status line.

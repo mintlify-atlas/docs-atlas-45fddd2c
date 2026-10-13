@@ -1,0 +1,119 @@
+---
+title: "What leaves your device: Reflect's complete privacy model"
+sidebarTitle: "Privacy"
+description: "Reflect is local-first with no Reflect-hosted server. Every network call the app can make is listed here — what it carries, when, and where it goes."
+---
+
+Reflect is local-first: your notes are Markdown files in a folder you chose, the search index is SQLite in `.reflect/` beside them, and **no Reflect-hosted server exists in any path** — there is no product analytics and no account. Official release builds send scrubbed crash diagnostics to Sentry. Every other network call the app can make is opt-in and listed below, with what it carries, when it fires, and where it goes.
+
+<Note>
+  The one hard rule above everything else: **a note with `private: true` in its frontmatter never has its content sent to any external service.** This is enforced in code at every AI call site using the `CloudSafe` type brand in `packages/core/src/ai/` — content for a provider cannot even be constructed from a private note. The flag is re-read from disk at call time, so a stale index cannot leak a note you just marked private. See [Private Notes](/privacy/private-notes) for the full picture.
+</Note>
+
+## AI chat
+
+*Off until you add a provider key.*
+
+<CardGroup cols={2}>
+  <Card title="Where" icon="arrow-right">
+    Directly to the provider whose API key you added — OpenAI, Anthropic, Google, or OpenRouter. Reflect proxies nothing.
+  </Card>
+  <Card title="What" icon="message">
+    Your chat messages and configured system prompt, plus what the model's tools read from your graph: search snippets, note content, and note listings. Private notes are dropped from every tool result — the model sees a refusal, not the content.
+  </Card>
+  <Card title="When" icon="clock">
+    Only while you use chat (⌘J). No background calls.
+  </Card>
+  <Card title="Limit" icon="triangle-exclamation">
+    Content you manually paste into a chat message is not covered by the `private: true` flag. The flag only protects tool reads.
+  </Card>
+</CardGroup>
+
+## Audio memos
+
+*Off until you add a provider key.*
+
+Audio bytes and the fresh transcript produced from them go directly to your configured providers. OpenAI or Google handles speech-to-text. A small text model from your configured OpenAI, Anthropic, or Google provider creates the memo title and — when Transcription auto-format is enabled — adds punctuation, paragraphs, and light Markdown to the body.
+
+**Existing note content is never read or sent.** Recording works even when today's daily note is marked `private: true`. The resulting Markdown is written locally. Disable Transcription auto-format in Settings to store the raw provider transcript; the title-generation call still receives that transcript.
+
+## Semantic search
+
+*Off by default — one-time opt-in download.*
+
+Embeddings are computed **entirely on-device** using a bundled ONNX runtime (`all-MiniLM-L6-v2`). Note content never leaves your machine for embedding. The only network call is a one-time ~90 MB model download from Hugging Face when you first enable the feature; that request carries no user data, and the model is cached locally afterwards.
+
+Semantic search is not available on Intel Macs or on iOS, which have no embedding runtime.
+
+## Backup & sync
+
+*Off until you connect a remote.*
+
+<CardGroup cols={2}>
+  <Card title="Where" icon="code-branch">
+    The git repository you connect — GitHub (guided in-app, private by default) or any SSH git remote you wire yourself.
+  </Card>
+  <Card title="What" icon="files">
+    Your whole graph as git commits — including notes marked `private: true`. Excluding private notes from backup would silently lose them; the privacy flag blocks services that read your content, not your own repository.
+  </Card>
+</CardGroup>
+
+GitHub sign-in uses the OAuth device flow against `github.com`; the token is stored in the OS keychain.
+
+## Browser capture
+
+The **Reflect Capture** Chrome extension hands each capture to a local native-messaging host (`reflect-capture-host`) registered on your machine. The host spools it to `<graph>/.reflect/inbox/` on disk; the app drains the inbox on next launch. **No Reflect-hosted server, no third party, and no other destination is ever contacted.** The extension stores no keys and makes no AI or network calls of its own.
+
+A capture records the page URL, title, your current text selection, a screenshot of the visible tab, and — only when you tick "Capture page text" — the page's extracted text.
+
+After a capture lands in your graph, the desktop app may request the captured URL directly to fetch page metadata and one representative image (via Apple's LinkPresentation framework on macOS and iOS). Those requests go to the captured website and its subresources, never through a Reflect server. `private: true` on the daily note prevents this request or discards its result.
+
+## Apple Contacts
+
+*Off by default — requires OS permission.*
+
+Contacts are read from the **on-device macOS/iOS contacts store** behind the standard OS permission prompt. Nothing is mirrored into `.reflect/` and Reflect never writes back to Contacts. Lookups are live queries — a note title or a meeting attendee's email is matched against your contacts; a match's name, email, and phone are shown on a suggestion card. Contact details enter a note only when you click **Add**, at which point they become ordinary Markdown covered by the same rules as anything else you type.
+
+## Exception diagnostics
+
+*On in official release builds.*
+
+<CardGroup cols={2}>
+  <Card title="Where" icon="bug">
+    Sentry. The React/WebView SDK handles JavaScript exceptions; on iOS a native SDK handles host-process crashes, main-thread hangs, watchdog terminations, and MetricKit diagnostics.
+  </Card>
+  <Card title="What" icon="shield">
+    An allow-listed diagnostic: exception class or failure category, sanitized stack locations, app/build version, and whether the exception was handled. Native reports add non-identifying OS/device model, architecture, memory, storage, battery, and thermal facts.
+  </Card>
+  <Card title="Never collected" icon="ban">
+    Note content, note titles, graph paths, local filesystem paths, request data, frame variables, source context lines, thread names, breadcrumbs, console output, session replay, performance traces, screenshots, or user identifiers.
+  </Card>
+  <Card title="Safeguards" icon="lock">
+    Server-side and default Sentry scrubbers are enabled. IP address storage is disabled. Sensitive-field rules cover notes, graph paths, requests, and user identifiers.
+  </Card>
+</CardGroup>
+
+## Housekeeping calls
+
+- **API key validation:** adding a provider key sends one cheap authenticated probe to that provider to confirm it works. No note content.
+- **Update check:** the packaged app fetches a release manifest (`latest.json`) from GitHub Releases on launch and every six hours. No user data is sent; update archives are verified against a public key compiled into the app before installing.
+
+## Secrets
+
+API keys and tokens live in the **OS keychain only** — never in Markdown, never in `.reflect/`, never in git. Deleting a provider in Settings deletes its keychain entry.
+
+## Summary
+
+| Call | Destination | Carries note content? | Off by default? |
+|---|---|---|---|
+| AI chat | Your chosen provider | Yes — private-note tool reads are blocked | Yes (needs your key) |
+| Audio transcription | Your chosen providers | No existing note content; audio and its fresh transcript | Yes (needs your key) |
+| Embeddings | Nowhere (on-device) | — | Yes (opt-in download) |
+| Model download | Hugging Face | No | Yes (opt-in) |
+| Backup | Your git repository | Yes — including private notes | Yes (needs connecting) |
+| Key validation | The provider | No | — (only when adding a key) |
+| Update check | GitHub Releases | No | On in packaged builds |
+| Browser capture | Nowhere (local host on disk) | — (stays on your machine) | — (only when you capture) |
+| Capture metadata and preview | The captured website, via Apple LinkPresentation | URL only; private captures are blocked | No (after an explicit capture) |
+| Contacts lookup | Nowhere (on-device OS store) | — (stays on your machine) | Yes (opt-in) |
+| Exception diagnostics | Sentry | No — free-form messages and context are redacted | No (official releases) |

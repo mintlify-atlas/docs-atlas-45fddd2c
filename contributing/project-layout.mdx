@@ -1,0 +1,162 @@
+---
+title: "Reflect project layout: monorepo apps, packages, and crates"
+sidebarTitle: "Project Layout"
+description: "Navigate the Reflect monorepo: apps/desktop, apps/cli, packages/core, packages/db, crates, design-system, and docs directories explained."
+---
+
+Reflect is a **Turborepo + pnpm monorepo** built around a **Tauri 2** desktop and mobile app: a React/TypeScript frontend bundled by Vite, embedded in a Rust native shell. The Rust crates form a single **Cargo workspace** rooted at the repository root. Understanding where things live — and why they're separated the way they are — is the fastest way to orient yourself before making a change.
+
+## Full tree
+
+```
+reflect-open/
+├── apps/
+│   ├── desktop/            # @reflect/desktop — Tauri 2 app
+│   │   ├── src/            # React frontend (main.tsx, components/, editor/, hooks/, providers/, routing/)
+│   │   ├── src-tauri/      # Tauri native shell (Rust crate reflect-open)
+│   │   │   ├── src/        # lib.rs (#[tauri::command] handlers), db/, fs/, watcher.rs, secrets.rs
+│   │   │   ├── tauri.conf.json          # build hooks, windows, bundle targets (incl. iOS)
+│   │   │   └── capabilities/            # Tauri 2 permission grants
+│   │   └── scripts/        # build-sidecar.ts, release scripts
+│   ├── cli/                # reflect — self-contained Rust read/discovery CLI
+│   ├── extension/          # @reflect/extension — Chrome MV3 capture extension (WXT)
+│   └── native-host/        # reflect-capture-host — native-messaging spooler sidecar
+├── packages/
+│   ├── core/               # @reflect/core — ALL TS business logic (markdown/, indexing/, graph/, embeddings/, ai/, settings/, ipc/)
+│   └── db/                 # @reflect/db — generated Kysely schema + IPC dialect
+├── crates/
+│   └── index-schema/       # Shared SQLite migrations for <graph>/.reflect/index.sqlite
+├── design-system/          # Design tokens, components, UI guidelines
+├── docs/                   # Product/architecture docs + docs/plans/
+├── Cargo.toml              # Root Cargo workspace
+└── turbo.json, pnpm-workspace.yaml
+```
+
+## `apps/`
+
+### `apps/desktop` — the main Tauri 2 app
+
+Package name: `@reflect/desktop`. This is the Mac and iOS application — a Vite-bundled React frontend embedded in a Rust Tauri native shell.
+
+<Tabs>
+  <Tab title="src/ (React frontend)">
+    The TypeScript/React codebase. Key subdirectories:
+
+    | Directory | Purpose |
+    |---|---|
+    | `components/` | Shared UI components (also hosts `ui/` with shadcn primitives) |
+    | `editor/` | Editor session wiring, adapters, and editor-specific components |
+    | `hooks/` | Custom React hooks — logic extracted from components |
+    | `providers/` | React context providers for app-wide state |
+    | `routing/` | Route definitions and layout wrappers |
+
+    The frontend calls into the Rust shell via `invoke` from `@tauri-apps/api/core`.
+  </Tab>
+  <Tab title="src-tauri/ (Rust shell)">
+    The Tauri native shell — Rust crate `reflect-open`. Key files and directories:
+
+    | Path | Purpose |
+    |---|---|
+    | `src/lib.rs` | `#[tauri::command]` handlers registered in `invoke_handler` |
+    | `src/db/` | Database access primitives (thin wrappers, not product logic) |
+    | `src/fs/` | File-system read/write primitives |
+    | `src/watcher.rs` | File-system watcher that emits change events |
+    | `src/secrets.rs` | OS keychain read/write (API keys, credentials) |
+    | `tauri.conf.json` | Build hooks, window config, bundle targets including iOS |
+    | `capabilities/` | Tauri 2 permission grants (e.g. `default.json`) |
+  </Tab>
+  <Tab title="scripts/">
+    Build and release helpers written in TypeScript:
+
+    - `build-sidecar.ts` — stages the `reflect` CLI and `reflect-capture-host` binaries into the positions `tauri-build` expects
+    - `release-*.ts` — macOS and iOS release automation helpers invoked by `pnpm release:macos` and `pnpm release:ios`
+  </Tab>
+</Tabs>
+
+### `apps/cli` — the `reflect` command-line tool
+
+A self-contained Rust crate (`reflect-cli`) that provides read-only commands for scripts and agents:
+
+```bash
+reflect today      # print today's daily note path
+reflect search     # full-text search across the graph
+reflect show       # display a note
+```
+
+The CLI reads the same SQLite index that the desktop app writes, which is why it uses the shared `index-schema` crate. It is bundled as a sidecar inside the macOS app — see `apps/desktop/scripts/build-sidecar.ts`.
+
+### `apps/extension` — Chrome MV3 capture extension
+
+Package name: `@reflect/extension`. Built with the [WXT](https://wxt.dev) framework. Lets users save the current page, selected text, screenshots, and page text from Chrome to the graph inbox.
+
+Communicates with the desktop app through the native-messaging host in `apps/native-host`.
+
+### `apps/native-host` — native-messaging spooler
+
+Rust crate `reflect-capture-host`. Acts as the native-messaging host that the Chrome extension connects to, spooling captures from the browser into the graph inbox. Bundled as a sidecar alongside the desktop app.
+
+## `packages/`
+
+### `packages/core` — all TypeScript business logic
+
+Package name: `@reflect/core`. **The most important package in the repo.** Every product rule, parsing decision, indexing algorithm, AI call, and graph operation lives here.
+
+<Warning>
+  `@reflect/core` must never import from `@tauri-apps/*`. Native access (file I/O, database, keychain) goes through an injected bridge (`setBridge`). Tests install fake bridges — they do not mock modules.
+</Warning>
+
+Key subdirectories inside `packages/core/src/`:
+
+| Directory | What lives here |
+|---|---|
+| `markdown/` | Markdown parsing, serialization, frontmatter handling |
+| `indexing/` | Full-text and semantic index update logic |
+| `graph/` | Graph operations: backlinks, wiki-link resolution, related notes |
+| `embeddings/` | Embedding generation for semantic search |
+| `ai/` | AI query orchestration (BYOK — no Reflect-hosted APIs) |
+| `settings/` | User settings schema, defaults-by-construction, read/write |
+| `ipc/` | Bridge interface definitions and Zod schemas for IPC payloads |
+
+### `packages/db` — database schema and IPC dialect
+
+Package name: `@reflect/db`. Contains the Kysely-generated TypeScript types for the SQLite schema, plus the IPC dialect that routes Kysely queries through the bridge to the Rust side. The `db` package may only call the database through the bridge — never directly.
+
+## `crates/`
+
+### `crates/index-schema` — shared SQLite migrations
+
+Rust crate `reflect-index-schema`. Defines the SQLite schema for `<graph>/.reflect/index.sqlite` through a set of versioned migrations. Both the Tauri desktop shell (which **writes** the index) and the `reflect` CLI (which **reads** it) depend on this crate, ensuring they always agree on the schema.
+
+<Tip>
+  Any change to the index schema must be expressed as a new migration in this crate. Never modify existing migrations — the desktop app applies them in order at startup.
+</Tip>
+
+## `design-system/`
+
+CSS design tokens and React primitives shared across the frontend. Key paths:
+
+| Path | Contents |
+|---|---|
+| `tokens/` | CSS custom properties for color, typography, spacing, and motion |
+| `components/` | Reusable React primitives (Button, Input, Badge, etc.) |
+| `guidelines/` | Color, type, spacing, and brand specimens |
+| `styles.css` | Global entry point that imports all tokens |
+
+Always check `apps/desktop/src/components/ui/` (the local shadcn layer) before the design-system directory — shadcn components wrap design-system primitives with app-specific styling.
+
+## `docs/`
+
+Product docs, architecture decision records, and the implementation plan series (`docs/plans/`). If you see a comment in the code citing "Plan 04b", the rationale lives in `docs/plans/04b-*.md`. Start with `docs/plans/00-overview.md` for the big picture.
+
+## Cargo workspace
+
+The root `Cargo.toml` defines a single Cargo workspace that includes all four Rust crates:
+
+| Crate | Path |
+|---|---|
+| `reflect-open` | `apps/desktop/src-tauri` |
+| `reflect-cli` | `apps/cli` |
+| `reflect-capture-host` | `apps/native-host` |
+| `reflect-index-schema` | `crates/index-schema` |
+
+This means `cargo test --workspace` compiles and tests all four crates in one pass — but remember to [stage the sidecars first](/contributing/building-from-source#staging-sidecars-for-bare-cargo-commands) or `tauri-build` will fail.

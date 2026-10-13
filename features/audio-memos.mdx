@@ -1,0 +1,107 @@
+---
+title: "Audio memos: record and transcribe into daily notes"
+sidebarTitle: "Audio Memos"
+description: "Record audio in Reflect and transcribe it to text using OpenAI or Google speech-to-text. Transcripts land in your daily note automatically."
+---
+
+Audio memos let you capture ideas, meeting summaries, and voice notes without stopping to type. Record a memo and Reflect transcribes it to text, formats it, and appends it to today's daily note automatically — all using your own API key sent directly to your chosen provider.
+
+## Recording a memo
+
+Start a recording from the audio memo button in the app toolbar, or from the iOS lock-screen widget via the `reflect://record-audio` deep link. Recording works immediately — you don't need to configure a transcription provider before you start.
+
+The audio recording is the **durable artifact**. Transcription is asynchronous — if it fails or is retried, the original recording is never lost.
+
+## Where transcripts land
+
+Finished transcripts are appended to **today's daily note** automatically. Each memo appears as a titled block so it's easy to scan and link to other notes with `[[wiki links]]` after the fact.
+
+Recordings are stored under `audio-memos/` in your graph alongside the resulting transcript Markdown:
+
+```
+my-graph/
+├── daily/
+│   └── 2026-06-08.md        ← transcript appended here
+└── audio-memos/
+    └── 2026-06-08-memo.m4a  ← original recording kept
+```
+
+## Transcription providers
+
+Reflect supports two speech-to-text providers. Configure one in **Settings → Audio**:
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="robot">
+    OpenAI speech-to-text. Uses your existing OpenAI API key — no separate
+    signup needed if you've already added OpenAI for AI chat.
+  </Card>
+  <Card title="Google" icon="sparkles">
+    Google speech-to-text. Uses your Google Gemini API key.
+  </Card>
+</CardGroup>
+
+API calls go **directly from the Reflect app to your provider** — no Reflect server, no third-party relay. What is sent: your recorded audio bytes and the transcript produced from them. Existing note content is never read or sent during transcription.
+
+## Auto-format
+
+After transcription, Reflect can pass the raw transcript through a small language model to improve readability:
+
+- Adds punctuation and paragraph breaks
+- Applies light Markdown formatting
+- Generates a title for the memo
+
+Auto-format is enabled by default and uses your configured OpenAI, Anthropic, or Google provider — the same key you've already added for AI chat.
+
+<Note>
+  Turning off **Transcription auto-format** in Settings stores the raw
+  provider transcript without formatting. However, the title-generation call
+  still fires — the raw transcript is sent to generate a title even when
+  auto-format is off.
+</Note>
+
+To disable auto-format: **Settings → Audio → Transcription auto-format → Off**.
+
+## Private notes and audio
+
+Recording a memo works even when today's daily note is marked `private: true`. Audio memos send only the audio bytes and the resulting transcript — no existing note content is read or sent. The `private: true` flag on a note blocks cloud AI processing of that note's content; it doesn't prevent you from recording new audio.
+
+<Warning>
+  If today's daily note is `private: true`, the transcript is still written
+  locally and appended to that note. The recording and transcription pipeline
+  reads no existing note content, so it is not blocked by the private flag.
+  The private flag blocks cloud AI from reading the note's *existing* content —
+  not from writing new transcribed content into it.
+</Warning>
+
+## Retry and reliability
+
+Memos awaiting transcription are retried automatically if the transcription call fails or if the app was closed before it completed. The raw recording is always preserved locally, so a retry never loses your content.
+
+## iOS lock-screen widget
+
+On iPhone, you can start a recording directly from the lock screen using the Reflect widget. The widget uses the `reflect://record-audio` deep link, which is handled natively by the iOS app — no need to unlock your phone and navigate to the app first.
+
+```text
+reflect://record-audio
+```
+
+## Setup
+
+<Steps>
+  <Step title="Add a transcription provider key">
+    Go to **Settings → AI** and add an OpenAI or Google API key if you haven't
+    already. Audio transcription uses the same key as AI chat.
+  </Step>
+  <Step title="Configure your transcription provider">
+    Go to **Settings → Audio** and select your preferred transcription
+    provider (OpenAI or Google).
+  </Step>
+  <Step title="Record a memo">
+    Tap the audio memo button in the toolbar (or use the iOS lock-screen widget)
+    and start speaking. Stop the recording when you're done.
+  </Step>
+  <Step title="Review the transcript">
+    Reflect transcribes and formats the memo in the background. Open today's
+    daily note to see the result appended automatically.
+  </Step>
+</Steps>

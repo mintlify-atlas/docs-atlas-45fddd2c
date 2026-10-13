@@ -1,0 +1,122 @@
+---
+title: "Ask your notes: BYOK AI with OpenAI, Anthropic, and Google"
+sidebarTitle: "AI"
+description: "Press ⌘J to ask questions about your notes using your own API key. Reflect supports OpenAI, Anthropic, Google, and OpenRouter — no Reflect account needed."
+---
+
+Reflect includes a built-in AI sidebar that can answer questions about your notes, find related ideas, and summarize what you've captured — using your own API key, sent directly from the app to your chosen provider. There is no Reflect-hosted AI proxy, no middleman, and no Reflect account required.
+
+## Opening the AI sidebar
+
+Press `⌘J` to open the "Ask your notes" sidebar. You can ask questions in plain English:
+
+- *"What did I decide about Project Apollo last week?"*
+- *"Summarize my notes on machine learning."*
+- *"Who are the people I mentioned in June?"*
+
+Answers cite the source notes they drew from, so you can follow up and read the full context.
+
+## Bring your own key (BYOK)
+
+Reflect supports four AI providers out of the box. Add whichever key you already have:
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="robot">
+    GPT models. API key format: `sk-…`
+  </Card>
+  <Card title="Anthropic" icon="brain">
+    Claude models. API key format: `sk-ant-…`
+  </Card>
+  <Card title="Google Gemini" icon="sparkles">
+    Gemini models. API key format: `AIza…`
+  </Card>
+  <Card title="OpenRouter" icon="shuffle">
+    Route to any supported model via a single key. Format: `sk-or-v1-…`
+  </Card>
+</CardGroup>
+
+An **OpenAI-compatible** endpoint option is also available for local models and self-hosted providers — no API key required for that path.
+
+Keys are stored in the **OS keychain only** — never written to Markdown, never committed to git, never stored in `.reflect/`. Deleting a provider in Settings removes its keychain entry immediately.
+
+## Setting up AI
+
+<Steps>
+  <Step title="Get an API key from your provider">
+    Sign up at [platform.openai.com](https://platform.openai.com),
+    [console.anthropic.com](https://console.anthropic.com),
+    [aistudio.google.com](https://aistudio.google.com), or
+    [openrouter.ai](https://openrouter.ai) and create an API key.
+  </Step>
+  <Step title="Add the key in Settings → AI">
+    Open **Settings → AI** in Reflect. Click **Add provider**, select your
+    provider, and paste the key. Reflect sends one inexpensive probe call to
+    validate the key — no note content is included in this call.
+  </Step>
+  <Step title="Press ⌘J to ask your notes">
+    Open the AI sidebar, type a question, and Reflect will search your local
+    graph for relevant context before answering.
+  </Step>
+</Steps>
+
+## What the AI can see
+
+The AI sidebar has access to a carefully scoped view of your graph — no more than it needs to answer your question:
+
+<Tabs>
+  <Tab title="Chat context">
+    Your chat messages and the configured system prompt are always included. The
+    system prompt is stored in your device's settings file and sent with every
+    turn.
+  </Tab>
+  <Tab title="Graph context (tool results)">
+    The model uses tools to read your graph: search snippets from local
+    full-text search, individual note content, and note listings. Each tool
+    result is sourced from your local index — no note content is stored
+    remotely or cached outside your device.
+  </Tab>
+</Tabs>
+
+Reflect makes the retrieved context visible in the sidebar so you can always see which notes the AI drew from.
+
+## Private notes are hard-blocked
+
+<Warning>
+  Notes marked `private: true` are dropped from every AI tool result. Reading
+  one is refused outright — the model receives a refusal message, not the
+  content. This protection cannot cover note content you manually paste into
+  the chat window or embed in your configured system prompt.
+</Warning>
+
+The `private: true` flag is enforced at every AI call site in code — the `CloudSafe` type brand in the core library means note content for a provider cannot even be constructed from a private note. The flag is re-read from the file on disk at call time, so a stale index cannot accidentally include content you've just marked private.
+
+To mark a note private, add this to its frontmatter:
+
+```yaml
+---
+private: true
+---
+```
+
+## No background AI calls
+
+The AI sidebar only fires while you are actively using it (`⌘J`). Reflect makes no background AI calls, no periodic summarization, and no ambient indexing through cloud providers. The only external AI network activity is what you explicitly trigger during a chat session.
+
+## The system prompt
+
+You can configure a custom system prompt in **Settings → AI**. This prompt is sent with every chat turn and stored in your device's ordinary settings file — not in Markdown or git. Use it to give the AI standing instructions about how to respond, your preferred writing style, or context about your workflow.
+
+## Calls go directly to your provider
+
+Every AI request goes from the Reflect app directly to your chosen provider's API endpoint. There is no Reflect server in the path, no logging of your queries, and no third-party relay. The URL your key is sent to is the same URL you'd use if you called the API yourself.
+
+## Supported models
+
+Reflect ships a curated model list for each provider, updated as providers release new versions. You can select your preferred model in **Settings → AI** after adding a provider key.
+
+| Provider | Key format | Example models |
+|----------|------------|----------------|
+| OpenAI | `sk-…` | GPT-5.5, GPT-5.4, GPT-5.4 mini |
+| Anthropic | `sk-ant-…` | Claude Opus 5, Claude Sonnet 5.5, Claude Haiku 4.5 |
+| Google Gemini | `AIza…` | Gemini Pro Latest, Gemini Flash Latest |
+| OpenRouter | `sk-or-v1-…` | Auto Router, any model via unified key |

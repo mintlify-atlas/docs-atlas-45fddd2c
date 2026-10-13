@@ -1,0 +1,122 @@
+{
+  "projectType": "saas",
+  "projectName": "Reflect",
+  "projectDescription": "An open-source, local-first, AI-native Markdown note-taking app for Mac and iPhone with daily notes, wiki links, backlinks, local search, and optional BYOK AI — all backed by plain Markdown files you own.",
+  "theme": "willow",
+  "primaryColor": "#0088ff",
+  "lightColor": "#8c8c8c",
+  "darkColor": "#7cacfc",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Getting Started",
+        "groups": [
+          {
+            "group": "Introduction",
+            "pages": [
+              "introduction",
+              "install",
+              "your-notes-are-files"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/daily-notes",
+              "features/wiki-links-and-backlinks",
+              "features/search",
+              "features/ai",
+              "features/audio-memos",
+              "features/browser-capture"
+            ]
+          },
+          {
+            "group": "Sync & Backup",
+            "pages": [
+              "sync/icloud",
+              "sync/github",
+              "sync/generic-git-remotes"
+            ]
+          },
+          {
+            "group": "Privacy & Security",
+            "pages": [
+              "privacy",
+              "privacy/private-notes"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI & Automation",
+        "groups": [
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "cli/overview",
+              "cli/commands",
+              "cli/graph-resolution",
+              "cli/json-output"
+            ]
+          },
+          {
+            "group": "Automation & Agents",
+            "pages": [
+              "automation/deep-links",
+              "automation/agent-skill"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Contributing",
+        "groups": [
+          {
+            "group": "Development",
+            "pages": [
+              "contributing/overview",
+              "contributing/building-from-source",
+              "contributing/project-layout",
+              "contributing/testing"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "contributing/architecture",
+              "contributing/storage-model",
+              "contributing/tauri-bridge"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Daily notes as the default capture surface — the app opens to today's note",
+    "Wiki links (`[[…]]`) and automatic backlinks for association-first organization",
+    "Local full-text search (⌘K) and optional on-device semantic search",
+    "BYOK AI (OpenAI, Anthropic, Google, OpenRouter) with `private: true` hard-block",
+    "Audio memos with async BYOK transcription and auto-formatting",
+    "Chrome browser capture via local native-messaging host (no cloud relay)",
+    "iCloud Drive sync with on-device conflict resolution",
+    "GitHub / generic SSH git remote backup with versioned history",
+    "`reflect` CLI for scripting and agent workflows (read-only, JSON output)",
+    "`reflect://` deep-link scheme for navigation and capture from external apps",
+    "Plain Markdown files as the source of truth — no proprietary database lock-in",
+    "Tauri 2 desktop shell (not Electron) with a React/TypeScript frontend"
+  ],
+  "publicApiSurface": [
+    "reflect today [--path] [--json]",
+    "reflect search <query> [--limit N] [--json]",
+    "reflect show <note> [--json]",
+    "reflect path <note> [--json]",
+    "reflect open <note> [--print] [--json]",
+    "reflect:// URL scheme — navigation: reflect://today, reflect://daily/YYYY-MM-DD, reflect://note/<target>, reflect://search?q=…, reflect://tasks",
+    "reflect:// URL scheme — write: reflect://append?text=…, reflect://checkbox?text=…, reflect://task?text=…",
+    "Graph folder layout: daily/YYYY-MM-DD.md, notes/<slug>.md, assets/, audio-memos/, .reflect/",
+    "Frontmatter fields: id (ULID), title, aliases, private",
+    "AI provider config: OpenAI, Anthropic, Google, OpenRouter (BYOK, stored in OS keychain)",
+    "Settings → Agents installs ~/.agents/skills/reflect-<graph-slug>/SKILL.md"
+  ]
+}

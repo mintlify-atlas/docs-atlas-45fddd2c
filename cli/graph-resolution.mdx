@@ -1,0 +1,79 @@
+---
+title: "How the reflect CLI finds your graph folder"
+sidebarTitle: "Graph Resolution"
+description: "The reflect CLI finds your graph via --graph flag, $REFLECT_GRAPH env var, or by walking up from the current directory — deterministic for scripts and agents."
+---
+
+Before any command can run, the `reflect` CLI must locate your graph folder. A **graph** is any directory that contains a `.reflect/` subdirectory — that hidden directory is what distinguishes a Reflect graph from an ordinary folder. Resolution is deterministic and follows a fixed priority order so that scripts and agents always get a predictable result.
+
+## Resolution order
+
+The CLI uses the first match it finds, in this order:
+
+<Steps>
+  <Step title="--graph flag">
+    If `--graph <path>` is passed on the command line, that path is used. The directory must contain a `.reflect/` subdirectory or the CLI exits with code `1`.
+
+    ```bash
+    reflect --graph ~/my-notes today
+    reflect --graph ~/my-notes search "meeting"
+    ```
+  </Step>
+  <Step title="$REFLECT_GRAPH environment variable">
+    If the `$REFLECT_GRAPH` environment variable is set, its value is used. The same `.reflect/` requirement applies.
+
+    ```bash
+    export REFLECT_GRAPH="$HOME/notes"
+    reflect today
+    reflect search "project plan"
+    ```
+  </Step>
+  <Step title="Walk up from the current directory">
+    If neither the flag nor the environment variable is set, the CLI walks up the directory tree from the current working directory — exactly like `git` looking for a `.git/` directory — and uses the first ancestor that contains `.reflect/`.
+
+    ```bash
+    cd ~/notes/daily
+    reflect today        # resolves ~/notes as the graph
+    ```
+  </Step>
+</Steps>
+
+## No fallback to the desktop app
+
+There is deliberately no fallback to the desktop app's recent-graphs list or any user-preference file. This keeps the CLI fully deterministic: a script run from a given directory with a given environment always targets the same graph, regardless of what the UI has open. This predictability is especially important for agents and automated workflows.
+
+<Warning>
+  If none of the three resolution steps finds a valid graph, the CLI exits with code `1` and prints an error to stderr. Make sure you are either inside a graph directory, have `$REFLECT_GRAPH` set, or are passing `--graph` explicitly.
+</Warning>
+
+## Setting `$REFLECT_GRAPH` permanently
+
+Add the export to your shell configuration file so every terminal session resolves correctly without needing the `--graph` flag:
+
+```bash
+# ~/.zshrc or ~/.bashrc
+export REFLECT_GRAPH="$HOME/notes"
+```
+
+After reloading your shell, you can run any `reflect` command from anywhere and it will target that graph.
+
+## Using `--graph` for multiple graphs
+
+If you maintain more than one graph, the `--graph` flag lets you target any of them from any working directory without changing your environment:
+
+```bash
+reflect --graph ~/work-notes search "Q3 planning"
+reflect --graph ~/personal-notes today
+```
+
+<Tip>
+  Shell aliases are a convenient way to wrap frequently-used graph paths:
+
+  ```bash
+  alias rw="reflect --graph ~/work-notes"
+  alias rp="reflect --graph ~/personal-notes"
+
+  rw search "Q3 planning"
+  rp today
+  ```
+</Tip>

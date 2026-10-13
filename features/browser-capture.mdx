@@ -1,0 +1,141 @@
+---
+title: "Browser capture: save pages from Chrome to your notes"
+sidebarTitle: "Browser Capture"
+description: "The Reflect Capture Chrome extension saves pages, selected text, and screenshots directly to your local graph — no cloud relay, no third-party server."
+---
+
+The Reflect Capture extension lets you save anything from Chrome — a page URL, selected text, a screenshot, or the full page text — directly into your local graph. Everything stays on your machine until the Reflect desktop app processes it. No cloud relay, no third-party service, no Reflect-hosted server involved at any point.
+
+## Install the extension
+
+<Steps>
+  <Step title="Install from the Chrome Web Store">
+    [Add Reflect Capture to Chrome](https://chromewebstore.google.com/detail/reflect-capture/ccabifmooehighoonjeiololjfofkhkd).
+    The extension is free and requires the Reflect desktop app to be installed on the same Mac.
+  </Step>
+  <Step title="Install the native messaging host">
+    On first use, the Reflect desktop app registers a native messaging host
+    (`reflect-capture-host`) automatically. This is the local bridge that
+    receives captures from the extension.
+  </Step>
+  <Step title="Capture your first page">
+    Navigate to any page, press `⌘⇧K` (or click the extension toolbar button),
+    and the capture lands in your graph.
+  </Step>
+</Steps>
+
+## What gets captured
+
+When you trigger a capture, the extension collects:
+
+<CardGroup cols={2}>
+  <Card title="URL and page title" icon="link">
+    Always included. The canonical address and title of the captured page.
+  </Card>
+  <Card title="Selected text / highlights" icon="text-cursor">
+    If you've selected text before capturing, it's included as the primary
+    highlight.
+  </Card>
+  <Card title="Screenshot" icon="camera">
+    A screenshot of the visible browser tab at the moment of capture.
+  </Card>
+  <Card title="Full page text" icon="file-text">
+    Optional. Tick "Capture page text" to include the page's extracted text
+    content.
+  </Card>
+</CardGroup>
+
+## How capture architecture works (no cloud relay)
+
+<Note>
+  The Reflect Capture extension never contacts a Reflect server or any
+  third-party service. All captured data travels exclusively between your
+  browser and your local machine — it never leaves your device until you
+  explicitly configure a sync or backup adapter.
+</Note>
+
+The capture pipeline is entirely local:
+
+```
+Chrome extension
+      ↓  (native messaging — local IPC, no network)
+reflect-capture-host
+      ↓  (writes to disk)
+<graph>/.reflect/inbox/
+      ↓  (desktop app drains on next launch)
+Reflect desktop app
+      ↓  (writes markdown + assets, runs BYOK enrichment)
+daily note  +  notes/  +  assets/
+```
+
+1. **Extension → native host:** the extension sends the capture payload to `reflect-capture-host` via Chrome's native messaging API — a local IPC channel, not a network socket. No API keys, no Reflect server, no third-party destination.
+2. **Native host → inbox:** the host spools the capture to `<graph>/.reflect/inbox/` on disk.
+3. **Desktop app → graph:** the desktop app drains the inbox on next launch, writes the Markdown note and any assets, and optionally runs BYOK AI enrichment.
+
+The extension stores no API keys, makes no AI calls, and makes no network calls of its own.
+
+## Where captures land in your graph
+
+A capture creates two things:
+
+**Today's daily note** gets a new entry under a `[[Links]]` section:
+
+```markdown
+## [[Links]]
+
+- [[My Captured Page]] — a one-line AI-generated description
+```
+
+**A dedicated Markdown note** is created for richer captures (when there's a description, highlights, or screenshot worth preserving as a durable object):
+
+```markdown
+---
+id: 01hzy3abc123def456ghi789jk
+url: https://example.com/article
+captured: 2026-06-08T14:23:00Z
+source: reflect-capture
+---
+
+# My Captured Page
+
+> Selected highlight text appears here.
+
+![Screenshot](../assets/capture-2026-06-08-screenshot.jpg)
+```
+
+Screenshots are stored under `assets/` as relative Markdown image links and are standard JPEG files you can open in any image viewer.
+
+## Keyboard shortcut
+
+Press `⌘⇧K` in Chrome to capture the current page instantly — no need to click the extension button in the toolbar.
+
+## BYOK AI enrichment
+
+After a capture lands in your graph, the Reflect desktop app uses your configured AI provider to generate a link description from the URL, screenshot, page title, and any selected text. This enrichment call:
+
+- Goes directly from the desktop app to your provider (OpenAI, Anthropic, Google, or OpenRouter)
+- Uses the same API key you configured in **Settings → AI**
+- Never involves the extension — the extension has no keys and makes no AI calls
+
+If the captured page or today's daily note is marked `private: true`, AI enrichment is blocked for that capture.
+
+## X / Twitter capture
+
+The extension can optionally capture your X bookmarks and likes:
+
+| Setting | Default | Behavior |
+|---------|---------|----------|
+| Bookmark capture | **On** | Captures bookmarked posts as they're observed on x.com |
+| Like capture | **Off** | Captures liked posts as they're observed on x.com |
+
+Both settings are independent and configurable in the extension's options page. Existing likes and bookmarks in your native X apps are not imported retroactively. Unliking a post does not remove it from Reflect. A request can be saved even if X later rejects or changes it.
+
+## If the desktop app isn't running
+
+Captures made when the Reflect desktop app isn't reachable are held in the **browser's local extension storage** and retried automatically until the desktop app is available to drain them. They are never sent to a server, never discarded, and never sent anywhere else in the meantime.
+
+<Tip>
+  You can capture pages even when your Mac is offline or the Reflect app is
+  closed. The extension queues everything locally and the desktop app processes
+  the queue on its next launch.
+</Tip>

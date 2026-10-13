@@ -1,0 +1,115 @@
+---
+title: "Plain Markdown files: how Reflect stores your notes"
+sidebarTitle: "Your Notes Are Files"
+description: "Reflect stores every note as a plain .md file in a folder you choose. Understand the graph layout, daily notes path, and stable note identity."
+---
+
+Every note you write in Reflect is a plain `.md` file stored in a folder on your Mac or iPhone. Reflect calls this folder a **graph**. You can open that folder in Finder, back it up with Time Machine, sync it with iCloud Drive or git, or edit individual files in any Markdown editor you like — Reflect will pick up any changes you make.
+
+<Tip>
+  You can edit notes in any Markdown editor — Obsidian, VS Code, iA Writer, or
+  a plain text editor — and Reflect will detect the changes and update its
+  index automatically. Wiki links you write outside Reflect resolve correctly
+  as long as the title you reference exists in the graph.
+</Tip>
+
+## Graph folder layout
+
+A graph is an ordinary directory. Reflect creates a predictable structure inside it:
+
+```text
+my-graph/
+├── daily/2026-06-12.md     # Daily notes, named by date
+├── notes/some-title.md     # Other notes, named from their titles
+├── assets/                 # Images and attachments
+├── audio-memos/            # Audio recordings and transcripts
+└── .reflect/               # Local-only index (never synced)
+    ├── index.db            # SQLite index — a rebuildable projection
+    ├── chat-history/       # AI conversation history
+    └── inbox/              # Capture inbox from the Chrome extension
+```
+
+<Note>
+  The SQLite database under `.reflect/` is a rebuildable projection of your
+  Markdown files, not the source of truth. If you delete it, Reflect rebuilds
+  it from your `.md` files on the next launch. Your notes are always the
+  Markdown files — the database is a performance cache.
+</Note>
+
+The `.reflect/` directory is marked local-only and is excluded from iCloud Drive sync and git commits by design. It holds generated indexes, AI chat history, and the capture inbox — none of which belong in version control or cloud sync.
+
+## Daily notes
+
+Daily notes live at `daily/YYYY-MM-DD.md`. The date is derivable directly from the file path, so no `title:` frontmatter is required. Reflect opens to today's daily note on launch and routes quick-capture there by default.
+
+You can link to a daily note from anywhere in your graph using its ISO date: `[[2026-06-12]]` resolves to `daily/2026-06-12.md`. Past and future daily notes are valid; Reflect creates the file when you navigate to a date that does not yet exist.
+
+## Regular notes
+
+Notes you create through the UI — by pressing `⌘N`, clicking an unresolved `[[wiki link]]`, or using the `[[` autocomplete — are stored as `notes/<slug>.md`. The slug is derived from the note's title automatically.
+
+When you change a note's title, Reflect renames the file to match, rewrites any inbound `[[wiki links]]` pointing at the old title, and preserves the old title as a frontmatter alias so anything the rewrite misses continues to resolve.
+
+### Slug rules
+
+The slug algorithm (`slugForTitle`) applies these rules in order:
+
+1. NFC-normalize the title.
+2. Lowercase everything.
+3. Keep letters and numbers; replace whitespace, underscores, and hyphens with a single `-`; drop everything else.
+4. Trim leading and trailing dashes.
+5. Cap the result at 60 Unicode code points.
+6. If the result is empty, use `untitled`.
+7. If the result collides with an existing file, append a numeric suffix: `meeting.md` → `meeting-2.md` → `meeting-3.md`, and so on.
+
+A few properties of this scheme matter in practice:
+
+- **Lowercase-only output** means APFS/NTFS case-insensitivity and git case-sensitivity agree by construction — Reflect only ever writes lowercase filenames.
+- **The 60-codepoint cap** keeps filenames readable and stays inside the 255-byte basename limit even for 4-byte CJK characters.
+- **CJK and other scripts pass through untransliterated** — `日本語ノート` keeps its characters in the slug.
+
+The slug rules are frozen by a golden test corpus. Any change to the output would cause a rename storm across every existing graph, so the rules are treated as a deliberate breaking-change gate.
+
+## Note identity and frontmatter
+
+Because filenames can change, Reflect gives every note it creates a stable ULID identity in frontmatter:
+
+```markdown
+---
+id: 01j2k8xmzq0000000000000000
+title: Meeting Notes
+aliases:
+  - Old Meeting Title
+private: false
+---
+
+# Meeting Notes
+
+Content starts here.
+```
+
+### Frontmatter fields
+
+| Field | Purpose |
+|---|---|
+| `id` | A lowercase ULID. Stable across renames. Used to detect moves, surface sync forks, and survive external file renames. |
+| `title` | Explicit title override. When present, the H1 heading is not used as the display title and the file is not subject to automatic title-driven renaming from the editor. |
+| `aliases` | Previous or alternative titles. Backlinks continue to resolve against aliases after a rename. |
+| `private` | Set to `true` to hard-block the note's content from all cloud AI calls, including BYOK providers, chat, note edits, and background context. Reflect will not send the content of a private note to any external service. |
+
+Wiki links — `[[Meeting Notes]]` — resolve against the index's title and alias keys at query time, not against file paths. This means a file rename breaks zero links by construction. The frontmatter `id` is what lets the index recognize a file that moved while Reflect wasn't running, and what surfaces sync forks when the same note is renamed differently on two devices.
+
+## Adopted notes
+
+If you open an existing Markdown vault — notes you created in Obsidian, VS Code, or any other editor — Reflect edits those files in place. It does not move them into `notes/` or change their filenames. In-app title changes maintain known wiki links and record the old title as an alias, but never move the file or opt its filename into title projection.
+
+Files without a Reflect `id` in their frontmatter are treated as adopted notes. They participate fully in search and backlinks, but external renames of these files are treated as a delete-and-create rather than a move, since there is no stable identity to heal against.
+
+## Sync and the graph folder
+
+Because the graph is just a folder, any file-sync mechanism works:
+
+- **iCloud Drive** — place your graph inside an iCloud-synced folder such as `iCloud Drive/ReflectGraph`. This is the recommended path for most users on Apple devices.
+- **Git / GitHub** — connect a GitHub repository or any SSH git remote in the app for versioned backup and multi-device sync. Reflect handles commits, pulls, and conflict detection; you interact with plain-language sync status rather than git commands.
+
+The `.reflect/` directory is excluded from both sync paths by design. Only the Markdown files, assets, and audio memos travel between devices.

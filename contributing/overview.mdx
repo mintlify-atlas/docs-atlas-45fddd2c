@@ -1,0 +1,146 @@
+---
+title: "Contributing to Reflect: setup, conventions, and PR guide"
+sidebarTitle: "Overview"
+description: "Everything you need to contribute to Reflect: development setup, code conventions, PR title rules, and where different kinds of code belongs."
+---
+
+Reflect is an open-source, local-first Markdown note-taking app built on a pnpm/Turborepo monorepo with a React/TypeScript frontend, a Tauri 2 Rust native shell, and a self-contained Rust CLI. This guide covers everything you need to get oriented, make a change, and open a pull request.
+
+## Quick setup
+
+Three commands get you running:
+
+```bash
+pnpm install
+pnpm tauri dev    # full desktop app (requires Rust toolchain)
+pnpm dev          # frontend only, no native shell
+```
+
+See [Building from Source](/contributing/building-from-source) for full prerequisites (Rust toolchain, Node.js, pnpm 10, Xcode Command Line Tools) and every available dev command.
+
+## Before opening a PR
+
+Run these checks against the code you touched before marking work done:
+
+```bash
+pnpm typecheck
+pnpm test --run <paths you touched>
+pnpm lint
+cargo test        # from apps/desktop/src-tauri, if you touched Rust
+```
+
+`pnpm check` is a shorthand that runs typecheck and lint together. CI enforces all of these — failing them locally means the PR will fail remotely too.
+
+## PR title format
+
+PR titles must follow [Conventional Commits](https://www.conventionalcommits.org). CI enforces the format. Because the repo squash-merges, your PR title becomes the commit message and, for `feat`/`fix`, the user-facing changelog entry.
+
+| Prefix | Effect |
+|---|---|
+| `feat: …` | New behavior — bumps the minor version |
+| `fix: …` | Bug fix — bumps the patch version |
+| `docs:` / `chore:` / `ci:` / `test:` / `refactor:` / `build:` | No release, no changelog entry |
+
+<Note>
+  Reflect is an app, not a library. `feat!:` and `BREAKING CHANGE:` footers are
+  not used — CI rejects the `!` suffix. GitHub's Revert button writes
+  `Revert "…"`; retitle it to `revert: …` before opening.
+</Note>
+
+Write the title as **user-visible behavior**, not implementation detail:
+
+```
+fix: keep the daily caret in view on long iOS notes   ✅
+fix: adjust scrollIntoView call in DailyEditor        ❌
+```
+
+The changelog is scoped to `apps/desktop/`: a change that should appear in it must touch that directory. A pure `packages/core` fix that lands alone still ships in the next release — it just gets no changelog line.
+
+## Where code goes
+
+Understanding the three-layer architecture prevents misplaced logic from the start.
+
+### Business logic belongs in `packages/core`
+
+No file I/O, database queries, or AI calls belong inside React components, hooks, or Tauri command handlers. Components call typed `@reflect/core` bindings; Rust commands are thin wrappers over native primitives.
+
+```
+Component / Hook
+    └── @reflect/core binding     ← business logic lives here
+            └── injected bridge   ← swapped for fakes in tests
+                    └── Tauri command / native API
+```
+
+### Rust owns capabilities, TypeScript owns policy
+
+A Rust command never encodes a product rule beyond the primitive it exposes. For example, the file-system watcher emits change events — what to reindex in response is decided in `packages/core`, not in Rust.
+
+### `@reflect/core` and `@reflect/db` are Tauri-free
+
+Neither package may import from `@tauri-apps/*`. Native access flows through an injected bridge (`setBridge`). Tests install fake bridges instead of module mocks, keeping the test surface honest.
+
+## Code conventions
+
+<Tabs>
+  <Tab title="TypeScript">
+    - Strict mode, no `any` (ever), Zod at every external boundary
+    - Kebab-case filenames, one React component per file, named exports
+    - Explicit return types on all public functions
+    - Interfaces for object shapes; type aliases for unions and mapped types
+    - Prefer `async`/`await` over Promise chains; prefer function declarations over arrow functions for named functions
+  </Tab>
+  <Tab title="React">
+    - Named exports for all components
+    - Props interfaces named `ComponentNameProps`
+    - No `use client` / `use server` directives; no `import * as React`
+    - Move business logic and mutation handlers out of components into hooks or pure helpers
+    - Use `shadcn/ui` from `apps/desktop/src/components/ui/` before building any custom overlay primitive
+  </Tab>
+  <Tab title="Rust">
+    - Rust commands are thin — they call into native primitives, not product logic
+    - Follow the Cargo workspace conventions in `Cargo.toml`
+    - Colocate tests as `#[cfg(test)]` modules inside each file
+  </Tab>
+</Tabs>
+
+Keep modules small and single-responsibility. Document every public API with a doc comment that explains *why*, not what. Comments that restate the code get dropped in review.
+
+## Hard product rules
+
+These constraints are non-negotiable and enforced at every call site:
+
+<Warning>
+  Notes with `private: true` frontmatter must **never** reach an external
+  service — AI, transcription, or otherwise. Enforce this at every call site,
+  not just at the top level.
+</Warning>
+
+- **Markdown files are the source of truth.** SQLite under `.reflect/` is a rebuildable cache. Never make the index durable. (One exception: `chat_*` tables hold AI chat history and must survive index rebuilds.)
+- **No Reflect-hosted APIs.** LLM calls go directly to user-configured providers (OpenAI, Anthropic, etc.). Sync goes to GitHub/iCloud/Git. Never proxy through Reflect infrastructure.
+- **No Electron.** The desktop shell is Tauri.
+- **Secrets in the OS keychain only.** API keys and credentials never go in Markdown, Git, or `.reflect/`.
+
+## Development targets
+
+`master` is the only long-lived branch. Branch from it and target it with PRs. release-please keeps a beta and a stable Release PR open side by side — merging one publishes that channel.
+
+<Tip>
+  Never hand-edit `apps/desktop/package.json` (the version), `apps/desktop/CHANGELOG.md`, or anything under `.github/release-please/`. These files are maintained automatically by release-please through Release PRs.
+</Tip>
+
+## Explore further
+
+<CardGroup cols={2}>
+  <Card title="Building from Source" icon="hammer" href="/contributing/building-from-source">
+    Prerequisites, all dev commands, iOS simulator setup, and TestFlight builds.
+  </Card>
+  <Card title="Project Layout" icon="folder-tree" href="/contributing/project-layout">
+    Every directory in the monorepo explained: apps, packages, crates, and design system.
+  </Card>
+  <Card title="Testing" icon="flask" href="/contributing/testing">
+    Vitest browser and node projects, Rust cargo tests, and the parity corpus.
+  </Card>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/team-reflect/reflect-open">
+    Browse the source, open issues, and follow releases.
+  </Card>
+</CardGroup>

@@ -1,0 +1,100 @@
+---
+title: "Install Reflect on Mac, iPhone, and Chrome"
+sidebarTitle: "Install"
+description: "Download the Reflect Mac app for Apple silicon or Intel, join the iOS TestFlight beta, and install the Chrome capture extension in three steps."
+---
+
+Reflect runs as a native Mac app built with Tauri (a Rust shell with a React/TypeScript frontend), a companion iOS app distributed through TestFlight, and a Chrome extension for browser capture. All three share the same plain-Markdown graph format, so notes you capture on one platform are immediately readable on the others.
+
+<Steps>
+
+### Install the Mac app
+
+Each Mac release is signed, notarized, and auto-updated from GitHub Releases. Choose the build that matches your Mac:
+
+<Tabs>
+  <Tab title="Stable">
+    | Architecture | Download |
+    |---|---|
+    | Apple silicon (M-series) | [Reflect\_aarch64.dmg](https://github.com/team-reflect/reflect-open/releases/latest/download/Reflect_aarch64.dmg) |
+    | Universal (Intel + Apple silicon) | [Reflect\_universal.dmg](https://github.com/team-reflect/reflect-open/releases/latest/download/Reflect_universal.dmg) |
+
+    Open the downloaded DMG, drag Reflect to Applications, and launch it. The app checks for updates automatically and upgrades silently in the background.
+  </Tab>
+  <Tab title="Beta">
+    The beta channel receives new features before stable and is updated more frequently. Beta builds are signed and notarized on the same pipeline as stable releases.
+
+    | Architecture | Download |
+    |---|---|
+    | Apple silicon (M-series) | [Reflect.Beta\_aarch64.dmg](https://github.com/team-reflect/reflect-open/releases/download/updater-beta/Reflect.Beta_aarch64.dmg) |
+    | Universal (Intel + Apple silicon) | [Reflect.Beta\_universal.dmg](https://github.com/team-reflect/reflect-open/releases/download/updater-beta/Reflect.Beta_universal.dmg) |
+
+    Reflect and Reflect Beta can coexist on the same Mac — they use separate app identifiers and update feeds.
+
+    <Warning>
+      If you previously installed a beta build labeled "Reflect" (not "Reflect
+      Beta"), delete that older build and install "Reflect Beta" fresh. The app
+      identifier changed when dedicated build flavors were introduced; the older
+      build will not migrate automatically.
+    </Warning>
+  </Tab>
+</Tabs>
+
+You can also [view all releases](https://github.com/team-reflect/reflect-open/releases) on GitHub for release notes and older builds.
+
+### Install the iOS beta
+
+The iOS app is distributed through Apple TestFlight and uses the same plain-file graph and sync options as the Mac app — the same `.md` files, the same iCloud Drive or git sync, and the same `[[wiki links]]`.
+
+1. Open [testflight.apple.com/join/j2eEz43d](https://testflight.apple.com/join/j2eEz43d) on your iPhone or in Safari.
+2. Tap **Start Testing** to accept the invitation and install the TestFlight app if prompted.
+3. Install Reflect from within TestFlight.
+
+<Note>
+  TestFlight betas expire after 90 days. TestFlight will notify you before
+  expiry and the invitation link above always points to the current build.
+</Note>
+
+### Install the Chrome extension
+
+The [Reflect Capture extension](https://chromewebstore.google.com/detail/reflect-capture/ccabifmooehighoonjeiololjfofkhkd) connects your browser to the desktop app. With the extension you can save the current page, selected text, screenshots, and full page text into today's daily note in one click — no copy-pasting required.
+
+1. Visit the [Chrome Web Store listing](https://chromewebstore.google.com/detail/reflect-capture/ccabifmooehighoonjeiololjfofkhkd).
+2. Click **Add to Chrome** and confirm the permissions prompt.
+3. Pin the extension to the toolbar for quick access.
+
+The extension communicates with the Reflect desktop app through a native messaging host. **The Mac app must be running** for browser capture to work.
+
+</Steps>
+
+## Building from source
+
+If you prefer to build Reflect yourself, the full source is available at [github.com/team-reflect/reflect-open](https://github.com/team-reflect/reflect-open) under the MIT license.
+
+**Prerequisites:**
+
+- A recent stable [Rust toolchain](https://rustup.rs)
+- Node.js with [pnpm](https://pnpm.io) 10
+- Xcode Command Line Tools (`xcode-select --install`)
+
+```bash
+git clone https://github.com/team-reflect/reflect-open.git
+cd reflect-open
+corepack enable
+pnpm install
+pnpm tauri dev
+```
+
+To produce a distributable bundle:
+
+```bash
+pnpm tauri build
+```
+
+<Note>
+  Builds from source produce unsigned bundles unless you supply Apple signing
+  credentials. Unsigned builds run fine on the machine you built them on but
+  will be rejected by Gatekeeper on other Macs. See
+  `docs/macos-distribution.md` in the repository for the full signing and
+  notarization guide.
+</Note>

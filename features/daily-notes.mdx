@@ -1,0 +1,136 @@
+---
+title: "Daily notes: capture everything in today's note"
+sidebarTitle: "Daily Notes"
+description: "Reflect opens to today's daily note on every launch. Learn how daily notes work, how they're stored, and how to navigate between days."
+---
+
+Reflect is built around one simple idea: you capture life chronologically, then understand it associatively. Every time you open Reflect, it lands directly on today's daily note — a clean, date-stamped page ready for thoughts, tasks, meeting notes, links, and anything else on your mind. Nothing to file, no folder to choose. Just open the app and start typing.
+
+## How daily notes are stored
+
+Each daily note is a plain Markdown file at a predictable path inside your graph:
+
+```
+daily/YYYY-MM-DD.md
+```
+
+For example, June 8, 2026 is stored as:
+
+```
+daily/2026-06-08.md
+```
+
+The date is fully derivable from the path, so daily notes require no frontmatter title — they are human-readable, portable, and editable in any text editor without Reflect installed. Your entire daily history is just a folder of dated Markdown files.
+
+<Note>
+  Daily notes are untouched by Reflect's filename management system. Unlike
+  regular notes, their paths never change — `daily/YYYY-MM-DD.md` is the
+  permanent, stable contract.
+</Note>
+
+## The default capture surface
+
+Daily notes are the default destination for every quick-capture action in Reflect:
+
+<CardGroup cols={2}>
+  <Card title="Quick text" icon="pencil">
+    Anything you type when you open the app lands in today's note. No routing
+    decision required.
+  </Card>
+  <Card title="Audio memos" icon="microphone">
+    Recordings are transcribed and appended to today's daily note
+    automatically.
+  </Card>
+  <Card title="Browser captures" icon="globe">
+    Pages saved from Chrome via the Reflect Capture extension appear under a
+    `[[Links]]` section in today's note.
+  </Card>
+  <Card title="Write links" icon="link">
+    Deep links like `reflect://append?text=call%20the%20bank` append a bullet
+    to today's note — useful for Shortcuts, launchers, and scripts.
+  </Card>
+</CardGroup>
+
+## Navigating between days
+
+Use the previous and next day navigation controls to move backward and forward through your daily notes. Future daily notes are valid — you can write tomorrow's note today.
+
+To link directly to a specific day from anywhere in your graph, use a date wiki link:
+
+```
+[[2026-06-08]]
+```
+
+This resolves to `daily/2026-06-08.md` and behaves exactly like any other `[[wiki link]]` — it autocompletes, creates the note if it doesn't exist, and shows up in backlinks.
+
+## iCloud sync and multi-device appends
+
+When you use iCloud Drive to sync your graph across multiple Apple devices, content appended to today's note from different devices is merged **oldest-first**. Each appended item lands in the order it was written, regardless of which device wrote it, so your daily capture stream stays coherent.
+
+## The CLI
+
+The `reflect` CLI includes dedicated support for daily notes, making it easy to integrate Reflect into editors, scripts, and automation:
+
+```bash
+# Print today's daily note content
+reflect today
+
+# Print the absolute path to today's daily note
+# Works even before the file exists on disk
+reflect today --path
+
+# Get structured JSON output
+reflect today --json
+reflect today --path --json
+```
+
+The `--path` flag is especially useful for scripts and external editors that need to open or create today's note:
+
+```bash
+# Open today's daily note in your preferred editor
+$EDITOR "$(reflect today --path)"
+```
+
+Because daily notes are created lazily (the file doesn't exist until Reflect or a script writes to it), `--path` returns the correct would-be path even before any content has been saved.
+
+<Tip>
+  Add `reflect today --path` to a shell alias or Raycast script to jump
+  straight into today's note in your editor of choice, even when the Reflect
+  app isn't running.
+</Tip>
+
+### JSON output reference
+
+```jsonc
+// reflect today --json
+{
+  "date": "2026-06-11",
+  "path": "daily/2026-06-11.md",
+  "absolutePath": "/…/graph/daily/2026-06-11.md",
+  "title": "2026-06-11",
+  "content": "…"
+}
+
+// reflect today --path --json (omits title and content; adds "exists")
+{
+  "date": "2026-06-11",
+  "path": "daily/2026-06-11.md",
+  "absolutePath": "/…/graph/daily/2026-06-11.md",
+  "exists": false
+}
+```
+
+## Graph layout at a glance
+
+```
+my-graph/
+├── daily/
+│   ├── 2026-06-08.md   ← each day is a plain Markdown file
+│   ├── 2026-06-09.md
+│   └── 2026-06-10.md
+├── notes/
+├── assets/
+└── audio-memos/
+```
+
+Daily notes are just files in a folder. Back them up, grep them, open them in Obsidian, version them in git — they remain yours regardless of whether Reflect is installed.

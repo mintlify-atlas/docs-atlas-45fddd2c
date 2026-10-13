@@ -1,0 +1,149 @@
+---
+title: "AI agent skill: teach coding agents your Reflect graph"
+sidebarTitle: "Agent Skill"
+description: "Settings → Agents installs a SKILL.md file that teaches AI coding agents the reflect CLI contract — graph root, CLI path, commands, and privacy rules."
+---
+
+Reflect can install a skill file that teaches AI coding agents — Claude, Cursor, Copilot, or any tool that supports `~/.agents` discovery — exactly how to interact with your graph. The skill covers the graph's root path, the bundled CLI's location, every command and its flags, the stable JSON schemas, exit codes, and the privacy rules that protect your private notes.
+
+## What is the agent skill?
+
+The skill is a single Markdown file installed at:
+
+```
+~/.agents/skills/reflect-<graph-slug>/SKILL.md
+```
+
+For example, if your graph folder is called `my-notes`, the skill lives at:
+
+```
+~/.agents/skills/reflect-my-notes/SKILL.md
+```
+
+The graph slug is derived from the graph folder name using the same slug algorithm Reflect uses for note filenames. Coding agents that support `~/.agents` discovery pick up this file automatically — no configuration needed on the agent side.
+
+### What the skill teaches
+
+<CardGroup cols={2}>
+  <Card title="Graph & CLI location" icon="folder-open">
+    The absolute path to your graph root and to the bundled CLI binary at `Reflect.app/Contents/MacOS/reflect`, so the agent can invoke it without any path guesswork.
+  </Card>
+  <Card title="Commands & flags" icon="terminal">
+    All five CLI commands with their flags, the stable `--json` output schemas, and exit code meanings — the complete automation surface.
+  </Card>
+  <Card title="Privacy rules" icon="lock">
+    A clear statement that reading a private note via the CLI returns exit code `3` — and that agents must not work around this by reading `.md` files from the graph directly.
+  </Card>
+  <Card title="Managed safely" icon="shield-check">
+    The file carries a `reflect-managed` sha256 marker. Reflect refreshes its own installs automatically but **never overwrites a hand-edited copy**, so you can safely customise the skill.
+  </Card>
+</CardGroup>
+
+## Setup
+
+<Steps>
+  <Step title="Open Settings → Agents">
+    In the Reflect app, open **Settings** (⌘,) and navigate to the **Agents** tab.
+  </Step>
+  <Step title="Install the skill">
+    Click **Install skill**. Reflect writes the `SKILL.md` file to `~/.agents/skills/reflect-<graph-slug>/` and confirms the path on screen.
+  </Step>
+  <Step title="Agents pick it up automatically">
+    Any coding agent that supports `~/.agents` discovery — including Claude Code, Cursor, and GitHub Copilot Workspace — will find and load the skill the next time it starts or refreshes its context. No further configuration is required.
+  </Step>
+</Steps>
+
+## What agents can do with the skill
+
+Once the skill is loaded, agents can query and navigate your graph using the five CLI commands. Every command accepts `--json` for machine-readable output:
+
+<CodeGroup>
+```bash Today's note
+# Get today's daily note content
+reflect today --json
+```
+
+```bash Search
+# Find notes relevant to a topic
+reflect search "meeting" --json
+```
+
+```bash Read a note
+# Read a specific note by title, path, date, or alias
+reflect show "Project X" --json
+```
+
+```bash Resolve a path
+# Get the absolute path to a daily note (for editor integration)
+reflect path 2026-06-12 --json
+```
+
+```bash Get a deep link
+# Get the reflect:// URL for a note without opening the app
+reflect open "Project X" --print --json
+```
+</CodeGroup>
+
+### Example JSON responses
+
+```jsonc
+// reflect today --json
+{
+  "date": "2026-06-11",
+  "path": "daily/2026-06-11.md",
+  "absolutePath": "/Users/alice/my-notes/daily/2026-06-11.md",
+  "title": "2026-06-11",
+  "content": "…"
+}
+
+// reflect search "meeting" --json
+{
+  "query": "meeting",
+  "stale": false,
+  "results": [
+    { "path": "notes/standup.md", "title": "Standup", "snippet": "…meeting notes…", "score": -1.94 }
+  ]
+}
+
+// reflect show "Project X" --json
+{ "date": null, "path": "notes/project-x.md", "absolutePath": "…", "title": "Project X", "content": "…" }
+
+// reflect path 2026-06-12 --json
+{ "date": "2026-06-12", "path": "daily/2026-06-12.md", "absolutePath": "…", "exists": true }
+
+// reflect open "Project X" --print --json
+{ "path": "notes/project-x.md", "url": "reflect://note/01hzy3…", "launched": false }
+```
+
+## Exit codes
+
+The CLI communicates outcomes through exit codes. Agents should check these before proceeding:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Success |
+| `1` | Runtime error (no graph found, I/O or SQL failure) |
+| `2` | Usage error (bad arguments) |
+| `3` | Note not found, **or note is private** |
+| `4` | Search index missing or unusable (`search` only — open the graph in Reflect to build it) |
+
+## Privacy contract
+
+<Note>
+  Agents should always use the CLI commands and respect the privacy contract. Reading a private note through the CLI returns **exit code 3** — agents must not work around this by reading `.md` files directly from the graph folder unless the user explicitly requests it. This boundary is enforced by re-reading the note's own frontmatter on every CLI call, so a stale index cannot leak a just-flagged private note.
+</Note>
+
+The five commands plus `--json` are the **entire stable automation surface**. The JSON field names and exit codes above are locked by tests and will not change meaning. New fields may be added in future versions; existing fields will not be removed or redefined.
+
+## How the skill stays up to date
+
+The `SKILL.md` file embeds a `reflect-managed` sha256 marker. When Reflect updates, it checks each installed skill file against the marker:
+
+- If the file matches the marker, Reflect rewrites it with the latest content.
+- If the file has been edited (marker doesn't match), Reflect leaves it untouched.
+
+This means you can safely add custom context — project-specific notes, instructions for your preferred agent workflow — and Reflect will never overwrite your changes.
+
+<Tip>
+  You can have multiple graphs, each with its own skill file. The graph slug in the directory name keeps them isolated: `~/.agents/skills/reflect-work-notes/SKILL.md` and `~/.agents/skills/reflect-personal/SKILL.md` coexist without conflict.
+</Tip>

@@ -1,0 +1,184 @@
+---
+title: "Reflect architecture: Tauri 2, React, Rust, and local-first data"
+sidebarTitle: "Architecture"
+description: "Understand Reflect's architecture: a React/TypeScript frontend in a Tauri 2 Rust shell, with all business logic in @reflect/core and plain Markdown as the source of truth."
+---
+
+Reflect is a **Turborepo + pnpm monorepo** wrapped around a **Tauri 2** desktop and mobile app. The React/TypeScript frontend is bundled by Vite and embedded in a Rust native shell. All Rust crates live in a single Cargo workspace rooted at the repository root, so both the JavaScript toolchain and the Rust toolchain share one consistent build graph.
+
+## Repository layout
+
+The monorepo is divided into four top-level areas: `apps/` for runnable targets, `packages/` for shared TypeScript libraries, `crates/` for shared Rust libraries, and `plugins/` for first-party Tauri plugins.
+
+```text
+reflect-open/
+├── apps/
+│   ├── desktop/            # @reflect/desktop — the Tauri 2 app
+│   │   ├── src/            # React frontend (main.tsx, components/, editor/, hooks/)
+│   │   └── src-tauri/      # Rust native shell (reflect-open crate)
+│   │       ├── src/        # lib.rs, db/, fs/, watcher.rs, secrets.rs, …
+│   │       ├── capabilities/        # Tauri 2 permission grants
+│   │       └── tauri.conf.json      # Build config, bundle targets (incl. iOS)
+│   ├── cli/                # reflect — standalone Rust read/discovery CLI
+│   ├── extension/          # @reflect/extension — Chrome MV3 capture (WXT)
+│   └── native-host/        # reflect-capture-host native-messaging sidecar
+├── packages/
+│   ├── core/               # @reflect/core — ALL TypeScript business logic
+│   └── db/                 # @reflect/db — Kysely schema + IPC dialect
+├── crates/
+│   └── index-schema/       # Shared SQLite migrations (desktop writer + CLI reader)
+├── plugins/                # First-party Tauri plugins
+├── design-system/          # Tokens, components, UI guidelines
+└── turbo.json, pnpm-workspace.yaml
+```
+
+## The frontend and Rust split
+
+Reflect draws a hard boundary between what Rust owns and what TypeScript owns.
+
+**Rust owns capabilities.** The native shell exposes primitives: file-system I/O, SQLite access, a file watcher, OS keychain operations, Git commands, and audio recording. A Rust command never encodes a product rule beyond the primitive it exposes — it does not decide *which* files to index, *which* notes are private, or *how* search results are ranked.
+
+**TypeScript owns policy.** `@reflect/core` holds all product logic: markdown parsing, backlink resolution, indexing strategy, AI context selection, privacy enforcement, and every decision about what to do with the capabilities Rust exposes.
+
+```text
+React component
+    │
+    │  typed @reflect/core binding
+    ▼
+@reflect/core (business logic, policy)
+    │
+    │  injected bridge (setBridge)
+    ▼
+Tauri invoke() → Rust command (primitive capability)
+```
+
+## React frontend
+
+The frontend lives in `apps/desktop/src/`. It is a standard React + TypeScript application, bundled by Vite, and served as the Tauri webview content. Components call `@reflect/core` functions — they do not call Rust directly.
+
+Key areas inside `apps/desktop/src/`:
+
+- `components/` — UI primitives and feature components
+- `editor/` — the note editor, built on Meowdown (`@meowdown/react`)
+- `hooks/` — shared React hooks for graph state, settings, and sync
+- `providers/` — context providers for the graph session, settings, and theme
+- `routing/` — screen-level routing
+
+## Rust native shell
+
+The Rust crate (`reflect-open`) lives in `apps/desktop/src-tauri/src/`. `lib.rs` is the entry point: it configures Tauri plugins, registers every `#[tauri::command]`, and wires the app event loop.
+
+Each module exposes one capability:
+
+| Module | Capability |
+|---|---|
+| `fs` | Graph file I/O — read, write, create, delete notes and assets |
+| `db` | SQLite index — open, apply, query, chat history |
+| `watcher` | File-system events — watch/unwatch a graph folder |
+| `secrets` | OS keychain — set, get, delete API keys |
+| `git` | Backup/sync primitives — clone, commit, fetch, merge, push |
+| `capture` | Link-capture inbox and native-messaging host plumbing |
+| `settings` | User settings store |
+| `recents` | Recent-graphs store |
+| `embed` | Local ONNX embedding runtime (fastembed, outside the webview) |
+| `calendar` | Read-only Apple Calendar access |
+| `contacts` | Apple Contacts lookups |
+| `menu` | macOS app menu (Paste and Match Style, etc.) |
+
+## The `setBridge` injection pattern
+
+`@reflect/core` and `@reflect/db` **never import `@tauri-apps`**. Instead, the desktop app injects a concrete bridge implementation at startup:
+
+```typescript
+// apps/desktop/src/main.tsx (simplified)
+import { setBridge } from '@reflect/core'
+import { tauriBridge } from './bridge'
+
+setBridge(tauriBridge)
+```
+
+In tests, a fake bridge is installed instead of a module mock — no Tauri process required:
+
+```typescript
+// In a test setup file
+import { setBridge } from '@reflect/core'
+import { fakeBridge } from '@/test-utils/fake-bridge'
+
+setBridge(fakeBridge)
+```
+
+This keeps `@reflect/core` and `@reflect/db` fully testable in a plain Node or browser environment without a running Tauri app.
+
+## Mobile: Tauri iOS target
+
+The iOS app is **not a separate package**. It is the Tauri iOS target of `apps/desktop` — the same React frontend, compiled against the same `@reflect/core`, with the Rust shell cross-compiled for iOS.
+
+```bash
+# Run in the iOS simulator
+pnpm tauri:ios:dev "iPhone 17 Pro"
+
+# Build and upload to TestFlight
+pnpm release:ios --build-number=123
+```
+
+Mobile-only Tauri plugins (`tauri-plugin-keyboard`, `tauri-plugin-mobile-haptics`, `tauri-plugin-recording`) are compiled in only on `#[cfg(mobile)]` targets. The frontend previews the mobile tree locally with `?platform=ios` in the dev URL.
+
+## Chrome extension
+
+The capture extension lives in `apps/extension/` and is built with **WXT** (WebExtension Tools) as a Chrome MV3 extension. It does **not** communicate with the desktop app over HTTP — it uses a native-messaging host (`reflect-capture-host`, the `native-host` sidecar) to pass captured URLs, titles, selected text, and screenshots directly to the desktop app's capture inbox.
+
+```text
+Chrome extension
+    │  native messaging (no HTTP port)
+    ▼
+reflect-capture-host (sidecar binary)
+    │
+    ▼
+.reflect/inbox/  ←→  apps/desktop (reads + processes captures)
+```
+
+## Local-first principles
+
+Every major architecture decision flows from a small set of hard rules:
+
+<Accordion title="Markdown files are the source of truth">
+Notes are `.md` files on disk in `daily/`, `notes/`, `assets/`, and `audio-memos/`. The SQLite index under `.reflect/` is a rebuildable projection of those files. You can always delete the index and reopen the graph to rebuild it from scratch.
+</Accordion>
+
+<Accordion title="No Reflect-hosted APIs">
+LLM calls go directly from the app to user-approved providers (OpenAI, Anthropic, Google, OpenRouter) using keys stored in the OS keychain. Sync goes to GitHub/iCloud/Git. Reflect never proxies these calls through its own infrastructure.
+</Accordion>
+
+<Accordion title="private: true is a hard block">
+Notes with `private: true` in their frontmatter must never have their content sent to any external service — AI, transcription, or otherwise. The `CloudSafe` type brand in `packages/core/src/ai/` enforces this at the type level, and every AI call site checks it.
+</Accordion>
+
+<Accordion title="Secrets in the OS keychain">
+API keys and credentials never go in Markdown files, Git history, or `.reflect/`. They live in the per-device OS keychain, accessed through the `secrets` Rust module.
+</Accordion>
+
+## Key design decisions
+
+- **No Electron.** Tauri was chosen for lower memory footprint and strong native file-system integration. The native shell compiles to a real platform binary; there is no bundled Chromium.
+- **MIT open-source core.** The local app, storage format, and editor behaviors are MIT-licensed and publicly inspectable.
+- **BYOK AI only.** AI keys are user-supplied and stored in the OS keychain. Reflect does not operate AI infrastructure.
+- **Turborepo task graph.** `turbo.json` orchestrates builds, typechecks, lints, and tests across packages with correct dependency ordering and caching.
+
+## Explore further
+
+<CardGroup cols={2}>
+  <Card
+    title="Storage Model"
+    icon="database"
+    href="/contributing/storage-model"
+  >
+    How Markdown files and the SQLite index relate, what lives in `.reflect/`, and the frontmatter schema.
+  </Card>
+  <Card
+    title="Tauri Bridge"
+    icon="bridge"
+    href="/contributing/tauri-bridge"
+  >
+    Defining Rust commands, calling them from TypeScript, granting permissions, and adding plugins.
+  </Card>
+</CardGroup>

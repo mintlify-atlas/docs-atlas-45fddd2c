@@ -1,0 +1,69 @@
+---
+title: "Reflect: open-source local-first Markdown notes"
+sidebarTitle: "Introduction"
+description: "Reflect is an open-source note-taking app for Mac and iPhone backed by plain Markdown files, daily notes, wiki links, and optional BYOK AI."
+---
+
+Reflect is an open-source note-taking app built around a folder of plain Markdown files. It opens to today's note, lets `[[wiki links]]` connect people, projects, and ideas across your graph, and keeps search and backlinks fast without turning your notes into an app-only database. Notes live in a folder you own — inspect, back up, sync, or edit them with any tool you choose.
+
+<Note>
+  No Reflect account is required. Reflect does not operate application APIs for
+  the core product. Every external call — AI, transcription, sync, or backup —
+  goes directly from the app to a provider you choose and configure.
+</Note>
+
+## What Reflect is
+
+A **graph** is what Reflect calls a notes folder. It is an ordinary directory of `.md` files on disk — one note per file, plain Markdown, readable by any editor. The app opens to today's daily note, which is the default surface for capturing thoughts, meetings, links, and audio memos throughout the day. Over time, `[[wiki links]]` you write connect notes into an associative web that backlinks and search make navigable.
+
+Because the files are plain Markdown, your knowledge is never locked in a proprietary database. iCloud Drive or a git remote can sync the same folder to your iPhone or back it up to GitHub. The `.reflect/` subdirectory holds a SQLite index and other local-only state that the app rebuilds automatically from your Markdown files whenever needed.
+
+## Key features
+
+- **Daily notes** — the app opens to today's note; quick capture always lands there.
+- **Wiki links and backlinks** — type `[[` to link any note; each note shows everything that links back to it.
+- **Local search** — `⌘K` searches notes, backlinks, and tags. Optional local semantic search can be enabled without sending data to a cloud service.
+- **Ask your notes (BYOK AI)** — `⌘J` queries your notes through API keys you provide for OpenAI, Anthropic, Google, or OpenRouter. Answers cite source notes. Notes marked `private: true` are hard-blocked from all cloud AI calls.
+- **Audio memos** — record audio and transcribe it into the daily note using a transcription provider you configure.
+- **Browser capture** — save the current page, selected text, screenshots, and page text from Chrome with the Reflect Capture extension.
+- **CLI** — `reflect today`, `reflect search`, and `reflect show` are available for scripts and agents.
+- **Sync choices** — use iCloud Drive for simple cross-device file sync, or connect GitHub for versioned backup and sync over a repository you control.
+
+## Product principles
+
+Reflect is built around five principles that distinguish it from traditional note-taking apps.
+
+**Daily notes first.** The chronological daily note is the capture spine of the product. Opening the app, invoking quick capture, and creating new content all default to today. Future and past daily notes are valid places to write; search and backlinks let you navigate from dates to people, projects, and ideas naturally.
+
+**Association over hierarchy.** Notes link to notes through `[[wiki links]]`. Folders exist because Markdown files live on a file system, but they are not the organizing model. Incoming backlinks create context automatically — you understand a note by seeing what links to it.
+
+**Keyboard-native UX.** Important workflows have direct keyboard paths: open search, open today's note, create a new note, create backlinks, invoke the AI sidebar, move between editor and sidebar, and accept or reject AI edits.
+
+**User-owned data.** Notes are real `.md` files you can inspect, copy, back up, version, and edit with other tools. The app maintains a local SQLite index for performance, but your durable knowledge is never locked inside a database.
+
+**No Reflect-hosted APIs.** The core product does not depend on Reflect-operated infrastructure. LLM and transcription calls go directly to model providers using credentials you supply. Backup and sync go directly to GitHub, a git remote, iCloud Drive, or another adapter you choose.
+
+## Open source
+
+Reflect is MIT-licensed. The app, local storage format, editor behaviors, and protocol assumptions are all open and inspectable. The source is available at [github.com/team-reflect/reflect-open](https://github.com/team-reflect/reflect-open).
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card
+    title="Install"
+    icon="arrow-down-to-bracket"
+    href="/install"
+  >
+    Download the Mac app, join the iOS TestFlight beta, and install the Chrome
+    capture extension in three steps.
+  </Card>
+  <Card
+    title="Your Notes Are Files"
+    icon="folder-open"
+    href="/your-notes-are-files"
+  >
+    Learn how Reflect stores notes as plain Markdown files, how the graph folder
+    is laid out, and how note identity works across renames.
+  </Card>
+</CardGroup>

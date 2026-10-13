@@ -1,0 +1,155 @@
+---
+title: "Search your notes locally with full-text and semantic search"
+sidebarTitle: "Search"
+description: "Press ⌘K to search notes, backlinks, and tags. Enable on-device semantic search for meaning-based recall — no data leaves your machine."
+---
+
+Every note you've ever written is instantly reachable. Press `⌘K` to open search and start typing — Reflect searches note titles, bodies, backlinks, and tags entirely on your device, with no network call required. For meaning-based recall beyond exact keywords, you can enable optional semantic search powered by a local on-device model.
+
+## Opening search
+
+Press `⌘K` from anywhere in the app to open the search palette. Results appear as you type.
+
+You can also navigate directly to the search screen with a deep link:
+
+```text
+reflect://search?q=meeting
+```
+
+## How results are ranked
+
+Reflect's full-text search uses a multi-pass ranking strategy designed to put the most relevant note at the top:
+
+<CardGroup cols={2}>
+  <Card title="Exact title match" icon="equals">
+    A note whose title exactly matches your query ranks first.
+  </Card>
+  <Card title="Title prefix match" icon="text">
+    Notes whose titles start with your query terms rank ahead of body matches.
+  </Card>
+  <Card title="Per-term title match" icon="list">
+    Each query term matched in the title is scored individually, boosting
+    title-heavy results above pure body matches.
+  </Card>
+  <Card title="Title-boosted BM25" icon="chart-bar">
+    Remaining results are ranked by BM25 relevance with a title boost — the
+    standard-bearer for full-text retrieval quality.
+  </Card>
+</CardGroup>
+
+## Word-start matching
+
+Search terms match at word boundaries — the start of a word, not anywhere inside one:
+
+| Query | Matches | Doesn't match |
+|-------|---------|---------------|
+| `car` | `Car log`, `Car maintenance` | `Oscar party`, `scarce` |
+| `meet` | `Meeting notes`, `meet Sarah` | `committee`, `teammates` |
+
+This keeps results precise and avoids noisy substring hits.
+
+**Exception for CJK scripts:** Japanese, Chinese, Korean, and other scripts written without spaces between words match anywhere in the title, since word boundaries cannot be reliably detected within uninterrupted character runs.
+
+## Partial and cross-field queries
+
+You don't have to type a complete word. A partial query finds notes where the terms appear:
+
+```
+authent migr    →   finds "authentication migration"
+project apol    →   finds "Project Apollo kickoff"
+```
+
+Terms can match across the title and body — a term from the title and a term from the body can both contribute to a single result. Body matches include a snippet showing the context.
+
+## FTS5 operators are not special
+
+Reflect matches all query terms literally. FTS5 operators like `AND`, `OR`, `NOT`, and `"quoted phrases"` have no special meaning — they are treated as ordinary search terms. A lone `-` or other punctuation the tokenizer finds no word in is silently ignored.
+
+## Semantic search (Apple silicon only)
+
+Lexical search finds notes that contain your words. Semantic search finds notes that contain your *meaning* — useful when you remember the idea but not the exact phrasing.
+
+<Warning>
+  Semantic search requires Apple silicon (M-series Mac). It is not available on
+  Intel Macs or on iOS, which have no on-device embedding runtime.
+</Warning>
+
+<Note>
+  Enabling semantic search downloads the `all-MiniLM-L6-v2` model (~90 MB)
+  from Hugging Face once. The download carries no user data; the model is
+  cached in `.reflect/` locally afterward and never re-downloaded.
+</Note>
+
+### How it works
+
+Semantic search is powered by a bundled [ONNX](https://onnxruntime.ai/) runtime running the `all-MiniLM-L6-v2` sentence-embedding model entirely on your Mac. Note content is chunked, embedded, and stored in `.reflect/` alongside the full-text index. Nothing leaves your device for embedding — there is no cloud API call, no Reflect server, and no third-party service involved.
+
+### Enabling semantic search
+
+<Steps>
+  <Step title="Open Settings">
+    Go to **Settings → Search** in the Reflect app.
+  </Step>
+  <Step title="Enable Semantic Search">
+    Toggle **Semantic Search** on. Reflect will download the ~90 MB model from
+    Hugging Face. This happens once and is cached locally.
+  </Step>
+  <Step title="Wait for indexing">
+    Reflect indexes your graph in the background. Large graphs may take a few
+    minutes on first enable.
+  </Step>
+  <Step title="Search by meaning">
+    Press `⌘K` and search naturally. Semantic results appear alongside
+    full-text results.
+  </Step>
+</Steps>
+
+Embeddings are stored in `.reflect/` inside your graph directory. If you use git for backup, `.reflect/` is gitignored, so embeddings are never committed to your repository.
+
+## CLI search
+
+The `reflect` CLI exposes search for scripting, agents, and editor integrations:
+
+```bash
+# Basic search
+reflect search "meeting notes"
+
+# Limit number of results
+reflect search "project apollo" --limit 5
+
+# JSON output for scripting
+reflect search "authentication" --json
+```
+
+### JSON output reference
+
+```jsonc
+// reflect search "meeting notes" --json
+{
+  "query": "meeting notes",
+  "stale": false,
+  "results": [
+    {
+      "path": "notes/standup.md",
+      "title": "Standup",
+      "snippet": "…meeting notes from Tuesday…",
+      "score": -1.94
+    }
+  ]
+}
+```
+
+The `stale` field is `true` when files on disk have been modified since the index was last built. Results still return; a staleness warning also goes to stderr. Open the graph in the desktop app to rebuild the index — the CLI is read-only and never runs the indexer.
+
+### CLI exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Runtime error (no graph, IO/SQL failure) |
+| `4` | Search index missing — open the graph in Reflect to build it |
+
+<Tip>
+  Pipe `reflect search` output into your coding agent or shell workflow using
+  `--json`. The JSON field names and exit codes are stable and locked by tests.
+</Tip>

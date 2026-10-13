@@ -1,72 +1,112 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "Reflect",
+  "theme": "willow",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#0088ff",
+    "light": "#8c8c8c",
+    "dark": "#7cacfc"
   },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
+  "favicon": "https://media.brand.dev/4a623d95-6528-4bed-bde0-1116bc116f6b.png",
   "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "light": "https://media.brand.dev/e8ee2d17-fed4-4376-a4e2-3efe25d5e285.jpg",
+    "dark": "https://media.brand.dev/e8ee2d17-fed4-4376-a4e2-3efe25d5e285.jpg"
   },
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:support@mintlify.com"
-      }
-    ],
     "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "type": "github",
+      "href": "https://github.com/team-reflect/reflect-open"
     }
-  },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/team-reflect/reflect-open"
     }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Getting Started",
+        "groups": [
+          {
+            "group": "Introduction",
+            "pages": [
+              "introduction",
+              "install",
+              "your-notes-are-files"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/daily-notes",
+              "features/wiki-links-and-backlinks",
+              "features/search",
+              "features/ai",
+              "features/audio-memos",
+              "features/browser-capture"
+            ]
+          },
+          {
+            "group": "Sync & Backup",
+            "pages": [
+              "sync/icloud",
+              "sync/github",
+              "sync/generic-git-remotes"
+            ]
+          },
+          {
+            "group": "Privacy & Security",
+            "pages": [
+              "privacy",
+              "privacy/private-notes"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI & Automation",
+        "groups": [
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "cli/overview",
+              "cli/commands",
+              "cli/graph-resolution",
+              "cli/json-output"
+            ]
+          },
+          {
+            "group": "Automation & Agents",
+            "pages": [
+              "automation/deep-links",
+              "automation/agent-skill"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Contributing",
+        "groups": [
+          {
+            "group": "Development",
+            "pages": [
+              "contributing/overview",
+              "contributing/building-from-source",
+              "contributing/project-layout",
+              "contributing/testing"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "contributing/architecture",
+              "contributing/storage-model",
+              "contributing/tauri-bridge"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

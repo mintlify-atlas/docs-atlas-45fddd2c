@@ -1,0 +1,71 @@
+---
+title: "Mark notes private to block all external AI access"
+sidebarTitle: "Private Notes"
+description: "Add private: true to any note's frontmatter to hard-block its content from every external service — AI chat, audio transcription, and browser capture enrichment."
+---
+
+The `private: true` frontmatter flag is a hard block at the code level. It prevents any external service from seeing a note's content — AI chat tools, browser capture enrichment, and the CLI all enforce it. The check reads the file's own frontmatter from disk at call time, not just a cached index row, so the protection is immediate.
+
+## How to mark a note private
+
+Add `private: true` to the YAML frontmatter at the top of the note:
+
+```markdown
+---
+private: true
+---
+
+Your private content here.
+```
+
+That's it. No index rebuild required. The flag takes effect on the next call to any service.
+
+<Note>
+  The `private` flag is re-read from the file on disk at every AI call — not from the search index. You don't need to rebuild the index, restart the app, or do anything else after adding it. A stale index cannot leak a note you just flagged.
+</Note>
+
+## What the flag blocks
+
+<CardGroup cols={2}>
+  <Card title="AI chat (⌘J)" icon="message-slash">
+    The note is dropped from every tool result. If the model's tool tries to read a private note, it receives a refusal — not the content. The model knows the note exists but cannot see it.
+  </Card>
+  <Card title="Browser capture enrichment" icon="ban">
+    BYOK AI enrichment of a captured page is refused or its result discarded when the daily note (the target of the capture) is marked private.
+  </Card>
+  <Card title="Capture metadata fetch" icon="link-slash">
+    The automatic metadata and preview image fetch that runs after a page is captured is prevented when the destination note is private.
+  </Card>
+  <Card title="CLI" icon="terminal">
+    `reflect show`, `reflect today`, and `reflect path` print nothing to stdout for private notes. They explain the refusal on stderr and exit with code `3`. `reflect search` filters private notes out of results entirely.
+  </Card>
+</CardGroup>
+
+## What the flag does NOT block
+
+<CardGroup cols={2}>
+  <Card title="Git backup" icon="code-branch">
+    Private notes are backed up to your git repository. The flag controls which services can read a note's content — it is not a backup exclusion filter. Excluding private notes from backup would silently lose them.
+  </Card>
+  <Card title="Local full-text search" icon="magnifying-glass">
+    Notes remain locally searchable. The index is on your device and is never sent to any external service.
+  </Card>
+  <Card title="Local semantic search" icon="brain">
+    Notes participate in local-only semantic retrieval using the on-device ONNX embedding runtime. Embeddings never leave your machine.
+  </Card>
+  <Card title="Audio recording" icon="microphone">
+    You can still record an audio memo even when today's daily note is marked private. Audio transcription sends only the audio bytes and the fresh transcript — no existing note content is read.
+  </Card>
+</CardGroup>
+
+<Warning>
+  Git backup **includes** private notes. If backup privacy matters to you, use repository-level access controls: keep the repository private on your git host, restrict deploy-key access, and review who has read access to the repository. The `private` flag alone is not sufficient to prevent a collaborator with repository access from reading those notes.
+</Warning>
+
+## Implementation
+
+The enforcement is structural, not just conditional. The `CloudSafe` type brand in `packages/core/src/ai/` makes it impossible to construct provider-bound content from a private note at the TypeScript type level — a call site that forgets to check would fail to compile, not just fail at runtime. The flag is re-read from the file's own frontmatter on disk at every call, independent of the index, so the guarantee holds even if the index row is stale.
+
+## The one thing the flag cannot protect
+
+Content you **manually paste** into an AI chat message (⌘J) is not protected by `private: true`. The flag only covers tool reads — the automated paths Reflect uses to supply your note content to the model. If you copy and paste the text of a private note into the chat input yourself, that text is included in the request.

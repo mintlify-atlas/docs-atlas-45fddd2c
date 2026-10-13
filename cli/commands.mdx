@@ -1,0 +1,246 @@
+---
+title: "reflect CLI command reference: today, search, show, path, open"
+sidebarTitle: "Commands"
+description: "Full reference for all five reflect CLI commands: today, search, show, path, and open. Includes flags, exit codes, and JSON output examples."
+---
+
+The `reflect` CLI exposes five commands. All of them accept a global `--graph <path>` flag to target a specific graph folder and a global `--json` flag to emit machine-readable output. Each command section below covers its flags, resolution behaviour, exit codes, and exact JSON shapes.
+
+<Tip>
+  Pipe `--json` output into `jq` or a script for reliable, structured access to your notes. Field names are locked by the integration test suite and will not change meaning across releases.
+</Tip>
+
+---
+
+## `reflect today`
+
+```bash
+reflect today [--path] [--json]
+```
+
+Prints today's daily note. Daily notes live at `daily/YYYY-MM-DD.md` inside the graph, named in the local timezone. This command is **file-only** — it does not need the search index at all.
+
+<Accordion title="Flags">
+  | Flag | Description |
+  |------|-------------|
+  | `--path` | Print the daily note's absolute path instead of its content. The path is printed even if the file does not exist yet — dailies are created lazily, so this is the standard way for editors and scripts to open or create today's note. |
+  | `--json` | Emit JSON instead of human-readable text (see shapes below). |
+</Accordion>
+
+<Accordion title="Exit codes">
+  | Code | Condition |
+  |------|-----------|
+  | `0` | Daily note found and printed (or `--path` used). |
+  | `3` | Today's daily note file does not exist and `--path` was not given, or the note is private. |
+</Accordion>
+
+<Accordion title="JSON output">
+  **`reflect today --json`** — full note content:
+
+  ```jsonc
+  // reflect today --json
+  {
+    "date": "2026-06-11",
+    "path": "daily/2026-06-11.md",
+    "absolutePath": "/…/graph/daily/2026-06-11.md",
+    "title": "2026-06-11",
+    "content": "…"
+  }
+  ```
+
+  **`reflect today --path --json`** — path only, with existence flag:
+
+  ```jsonc
+  // reflect today --path --json
+  { "date": "…", "path": "…", "absolutePath": "…", "exists": false }
+  ```
+
+  When `--path` is used, `title` and `content` are omitted and `exists` is added to indicate whether the file is already on disk.
+</Accordion>
+
+---
+
+## `reflect search`
+
+```bash
+reflect search <query> [--limit N] [--json]
+```
+
+Runs a ranked full-text search over note titles and bodies. Results are ordered the same way the desktop app orders them: exact matches, prefix matches, and per-term title matches lead, followed by title-boosted BM25 body matches.
+
+**Matching rules:**
+- Terms match at word starts — `car` finds `Car log` but not `Oscar party`.
+- Scripts written without word breaks (Japanese, Chinese, Korean, Thai, and similar) match anywhere in the title, because FTS alone cannot see inside their uninterrupted title runs.
+- Partial, multi-term queries work across title and body — `authent migr` finds `authentication migration`.
+- FTS5 operators (like `-`, `AND`, `OR`) in the query have no special meaning; terms are matched literally.
+- A term the tokenizer finds no word in (such as a lone `-`) is silently ignored.
+
+<Accordion title="Flags">
+  | Flag | Description |
+  |------|-------------|
+  | `<query>` | Required. One or more search terms matched literally across title and body. |
+  | `--limit N` | Maximum number of results to return. Default: `20`. |
+  | `--json` | Emit JSON instead of human-readable text. |
+</Accordion>
+
+<Accordion title="Exit codes">
+  | Code | Condition |
+  |------|-----------|
+  | `0` | Search completed (zero results is still exit `0`). |
+  | `4` | `.reflect/index.sqlite` is missing or unusable. Open the graph in Reflect to build the index — the CLI never runs the indexer. |
+</Accordion>
+
+<Accordion title="Staleness">
+  If files on disk diverge from the index (checked by mtime, then content hash), the CLI emits a staleness warning on stderr and sets `"stale": true` in JSON output. Results are still returned. Open the graph in the desktop app to rebuild the index.
+</Accordion>
+
+<Accordion title="JSON output">
+  ```jsonc
+  // reflect search "meeting notes" --json
+  {
+    "query": "meeting notes",
+    "stale": false,
+    "results": [
+      { "path": "notes/standup.md", "title": "Standup", "snippet": "…meeting notes…", "score": -1.94 }
+    ]
+  }
+  ```
+
+  Results without a body match have an empty `snippet`. Title-prefix recall scores `0`; tokenizer-normalised title matches retain their BM25 score. The human-readable listing shows a v1-style `Title // Alias` note by its first segment, as the app does; `--json` keeps the complete title in `title`.
+</Accordion>
+
+---
+
+## `reflect show`
+
+```bash
+reflect show <note> [--json]
+```
+
+Resolves `<note>` and prints the raw Markdown content of the matched note. Works with or without the search index — when the index is missing, titles and aliases are derived by scanning files directly.
+
+**Resolution order (first match wins):**
+
+<Steps>
+  <Step title="Calendar date">
+    A calendar-valid `YYYY-MM-DD` string → that daily note.
+  </Step>
+  <Step title="Explicit path">
+    A graph-relative path such as `notes/foo.md`, or an absolute path inside the graph.
+  </Step>
+  <Step title="Title match">
+    Case-insensitive, trimmed match against note titles.
+  </Step>
+  <Step title="Alias match">
+    Match against `aliases:` frontmatter, or the alias segment of a v1 `//` title like `Charlotte MacCaw // Mum`.
+  </Step>
+</Steps>
+
+When multiple notes match, the first path alphabetically is used and the others are listed on stderr.
+
+<Accordion title="Flags">
+  | Flag | Description |
+  |------|-------------|
+  | `<note>` | Required. A date, path, title, or alias to resolve. |
+  | `--json` | Emit JSON instead of human-readable text. |
+</Accordion>
+
+<Accordion title="Exit codes">
+  | Code | Condition |
+  |------|-----------|
+  | `0` | Note resolved and content printed. |
+  | `3` | Note not found, or note is private. |
+</Accordion>
+
+<Accordion title="JSON output">
+  ```jsonc
+  // reflect show "Project X" --json   ("date" is null for non-dailies)
+  { "date": null, "path": "notes/project-x.md", "absolutePath": "…", "title": "Project X", "content": "…" }
+  ```
+
+  For daily notes, `"date"` is the `YYYY-MM-DD` string. For all other notes it is `null`.
+</Accordion>
+
+---
+
+## `reflect path`
+
+```bash
+reflect path <note> [--json]
+```
+
+Uses the same resolution logic as `show` but prints only the absolute path, with no note content. This makes it safe to pipe directly into editors and other tools.
+
+```bash
+$EDITOR "$(reflect path 'Project X')"
+```
+
+A `YYYY-MM-DD` argument prints the would-be daily path even before the file exists — the same behaviour as `today --path`. This is the standard way for editors to open or create a specific day's note.
+
+<Accordion title="Flags">
+  | Flag | Description |
+  |------|-------------|
+  | `<note>` | Required. A date, path, title, or alias to resolve. |
+  | `--json` | Emit JSON instead of human-readable text. |
+</Accordion>
+
+<Accordion title="Exit codes">
+  | Code | Condition |
+  |------|-----------|
+  | `0` | Note resolved and path printed. For a future daily date, `exists: false` is set in JSON but exit is still `0`. |
+  | `3` | Note not found (non-date argument), or note is private. |
+</Accordion>
+
+<Accordion title="JSON output">
+  ```jsonc
+  // reflect path 2099-01-01 --json   ("date" only appears for dailies)
+  { "date": "2099-01-01", "path": "daily/2099-01-01.md", "absolutePath": "…", "exists": false }
+  ```
+
+  `"date"` appears only for daily note resolutions. `"exists"` indicates whether the file is already on disk (always `true` for non-date resolutions).
+</Accordion>
+
+---
+
+## `reflect open`
+
+```bash
+reflect open <note> [--print] [--json]
+```
+
+Resolves `<note>` using the same logic as `show`, then opens it in the Reflect desktop app by handing the OS URL opener a `reflect://` deep link. The URL is always printed to stdout — `--print` skips the launch step so you can use the URL in scripts without activating the app.
+
+**URL preference order:**
+1. The date form for dailies (works even before the file exists — navigation creates them lazily).
+2. The frontmatter `id` form when the note carries an `id` field (survives renames).
+3. The graph-relative path form as a fallback.
+
+<Note>
+  The CLI never writes and therefore never mints new IDs. Use **Copy deep link** in the app to generate an `id`-based URL for a note.
+</Note>
+
+Private notes are refused before their address is revealed — exit code `3` is returned without printing the URL.
+
+<Accordion title="Flags">
+  | Flag | Description |
+  |------|-------------|
+  | `<note>` | Required. A date, path, title, or alias to resolve. |
+  | `--print` | Print the `reflect://` URL without launching the OS URL opener. |
+  | `--json` | Emit JSON instead of human-readable text. |
+</Accordion>
+
+<Accordion title="Exit codes">
+  | Code | Condition |
+  |------|-----------|
+  | `0` | Note resolved and opened (or URL printed with `--print`). |
+  | `3` | Note not found, or note is private. |
+</Accordion>
+
+<Accordion title="JSON output">
+  ```jsonc
+  // reflect open "Project X" --json --print   ("date" only appears for dailies)
+  { "path": "notes/project-x.md", "url": "reflect://note/01hzy3…", "launched": false }
+  ```
+
+  `"launched"` is `false` when `--print` is used (the OS opener was not called), and `true` when the app was actually opened.
+</Accordion>

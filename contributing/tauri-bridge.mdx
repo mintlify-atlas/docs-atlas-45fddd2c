@@ -1,0 +1,249 @@
+---
+title: "Frontend–Rust bridge in Reflect: Tauri commands and plugins"
+sidebarTitle: "Tauri Bridge"
+description: "Reflect's React frontend calls Rust capabilities via Tauri's invoke() IPC. Learn how to define commands, grant permissions, and add Tauri plugins."
+---
+
+Reflect's React frontend and its Rust native shell communicate exclusively through **Tauri's IPC layer**. TypeScript calls Rust via `invoke()`, and Rust commands emit events back to the frontend via `app.emit()`. Understanding this bridge is the starting point for any work that touches native capabilities: file I/O, the OS keychain, the file watcher, Git operations, or platform-specific features.
+
+<Note>
+`@reflect/core` and `@reflect/db` must never import from `@tauri-apps`. All native access goes through an injected bridge (`setBridge`), which keeps these packages fully testable in a plain Node or browser environment without a running Tauri process.
+</Note>
+
+## How the bridge works
+
+The pattern has three parts that stay in sync: the Rust command definition, its registration in `lib.rs`, and the TypeScript call site.
+
+### 1. Define a Rust command
+
+Commands live in module files under `apps/desktop/src-tauri/src/`. Each command is an `async fn` annotated with `#[tauri::command]`.
+
+```rust
+// apps/desktop/src-tauri/src/fs.rs (simplified)
+
+/// Read a note's markdown content from the graph folder.
+/// Rust exposes the primitive; @reflect/core decides what to do with it.
+#[tauri::command]
+pub async fn note_read(
+    graph: String,
+    path: String,
+) -> Result<String, String> {
+    let full_path = std::path::Path::new(&graph).join(&path);
+    std::fs::read_to_string(full_path).map_err(|e| e.to_string())
+}
+```
+
+Keep command handlers thin. If a handler is doing more than calling an OS primitive and returning the result, that logic probably belongs in `@reflect/core`.
+
+### 2. Register the command in `lib.rs`
+
+Every command must be listed in `lib.rs`'s `invoke_handler` macro call. Commands not listed here are not reachable from the frontend.
+
+```rust
+// apps/desktop/src-tauri/src/lib.rs
+
+.invoke_handler(tauri::generate_handler![
+    app_version,
+    fs::note_read,
+    fs::note_write,
+    fs::note_create,
+    // … all other commands
+])
+```
+
+### 3. Call from TypeScript via `invoke`
+
+The frontend calls commands through `@tauri-apps/api/core`. In practice, you will almost never call `invoke` directly from a component — instead, wrap it in a bridge method and call it through `@reflect/core`.
+
+```typescript
+// Direct invoke (used in the bridge implementation)
+import { invoke } from '@tauri-apps/api/core'
+
+const content = await invoke<string>('note_read', {
+  graph: '/Users/alice/notes',
+  path: 'daily/2025-11-04.md',
+})
+```
+
+Parameter names passed to `invoke` must exactly match the Rust function's parameter names (Tauri converts camelCase to snake_case automatically).
+
+## The `setBridge` injection pattern
+
+`@reflect/core` and `@reflect/db` are pure TypeScript packages — they must not import `@tauri-apps`. Instead, the desktop app injects a concrete bridge implementation once at startup:
+
+```typescript
+// apps/desktop/src/main.tsx (simplified)
+import { setBridge } from '@reflect/core'
+import { tauriBridge } from './bridge'
+
+setBridge(tauriBridge)
+```
+
+The bridge implementation wraps `invoke()` calls behind a typed interface. This makes the contract between TypeScript and Rust explicit and keeps it in one place.
+
+```typescript
+// apps/desktop/src/bridge.ts (illustrative shape)
+import { invoke } from '@tauri-apps/api/core'
+import type { Bridge } from '@reflect/core'
+
+export const tauriBridge: Bridge = {
+  async readNote(graph: string, path: string): Promise<string> {
+    return invoke<string>('note_read', { graph, path })
+  },
+  async writeNote(graph: string, path: string, content: string): Promise<void> {
+    return invoke<void>('note_write', { graph, path, content })
+  },
+  // … other bridge methods
+}
+```
+
+In tests, a fake bridge replaces the Tauri bridge — no mocking framework needed:
+
+```typescript
+// In a test setup file
+import { setBridge } from '@reflect/core'
+import { fakeBridge } from '@/test-utils/fake-bridge'
+
+setBridge(fakeBridge)
+```
+
+This is why you will not find `vi.mock('@tauri-apps/api/core')` in the test suite. The bridge injection makes testing straightforward and keeps `@reflect/core` portable.
+
+## Adding a new command
+
+<Steps>
+  <Step title="Create the command in the appropriate module">
+    Add your `#[tauri::command]` function to the relevant module file in `apps/desktop/src-tauri/src/`. Follow the convention: thin wrapper over a native primitive, no product logic.
+
+    ```rust
+    // apps/desktop/src-tauri/src/secrets.rs
+    #[tauri::command]
+    pub async fn secret_get(key: String) -> Result<Option<String>, String> {
+        keychain::get(&key).map_err(|e| e.to_string())
+    }
+    ```
+  </Step>
+  <Step title="Register it in lib.rs">
+    Add the command to the `invoke_handler` list in `apps/desktop/src-tauri/src/lib.rs`:
+
+    ```rust
+    .invoke_handler(tauri::generate_handler![
+        // … existing commands …
+        secrets::secret_get,
+    ])
+    ```
+  </Step>
+  <Step title="Add a bridge method in @reflect/core">
+    Extend the `Bridge` interface and implement it in `apps/desktop/src/bridge.ts`. Validate the return value at the boundary using Zod.
+  </Step>
+  <Step title="Grant any required permissions">
+    If the command needs capabilities beyond the defaults (for example, file-system access outside the app sandbox), add a permission grant to `apps/desktop/src-tauri/capabilities/default.json`.
+
+    ```json
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "$HOME/notes/**" }]
+    }
+    ```
+  </Step>
+  <Step title="Run typecheck, lint, and tests">
+    ```bash
+    pnpm check              # typecheck + lint
+    cargo test -p reflect-open  # Rust tests for the desktop crate
+    pnpm test --run path/to/your.test.ts
+    ```
+  </Step>
+</Steps>
+
+## Tauri 2 capabilities
+
+Tauri 2 uses an **explicit permission grant** model. By default, commands are not accessible from the webview — you must list them in a capability file. The main capability file is `apps/desktop/src-tauri/capabilities/default.json`.
+
+```json
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window and secondary note windows",
+  "windows": ["main", "note-*"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "core:window:allow-start-dragging",
+    "opener:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://*:*" }, { "url": "http://*:*" }]
+    }
+  ]
+}
+```
+
+Additional capability files — `desktop.json`, `mobile.json`, `ios.json` — handle platform-specific grants. When you add a plugin that requires new permissions, add them to the appropriate capability file.
+
+<Warning>
+Omitting a required permission causes a silent failure at runtime: the `invoke()` call rejects with a "Command not allowed" error. Always check capability grants when a new command is not reachable from the frontend.
+</Warning>
+
+## First-party Tauri plugins
+
+First-party plugins live in `plugins/` at the repo root. Each exposes a focused native capability not covered by the official Tauri plugin ecosystem.
+
+| Plugin | Platform | Purpose |
+|---|---|---|
+| `tauri-plugin-app-store` | macOS, iOS | App settings store (StoreKit 2 / App Store receipt checks) |
+| `tauri-plugin-keyboard` | iOS | Software keyboard appearance and height events |
+| `tauri-plugin-mobile-haptics` | iOS | Haptic feedback via `UIImpactFeedbackGenerator` |
+| `tauri-plugin-recording` | iOS | Audio recording via `AVAudioRecorder`, survives webview interruptions |
+| `tauri-plugin-web-auth` | iOS | GitHub OAuth device flow via `ASWebAuthenticationSession` |
+
+Plugins are conditionally compiled using Tauri's `#[cfg(mobile)]` and `#[cfg(target_os = "ios")]` guards in `lib.rs`, so desktop builds are not affected by mobile-only plugins.
+
+### Adding a plugin
+
+<Steps>
+  <Step title="Add the plugin dependency to Cargo.toml">
+    ```toml
+    # apps/desktop/src-tauri/Cargo.toml
+    [dependencies]
+    tauri-plugin-recording = { path = "../../plugins/tauri-plugin-recording" }
+    ```
+  </Step>
+  <Step title="Register the plugin in lib.rs">
+    ```rust
+    // apps/desktop/src-tauri/src/lib.rs
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_recording::init());
+    ```
+  </Step>
+  <Step title="Grant plugin permissions in capabilities/">
+    Add the plugin's permission identifiers to the relevant capability file under `apps/desktop/src-tauri/capabilities/`.
+  </Step>
+  <Step title="Expose the plugin through the bridge">
+    Wrap plugin commands in a bridge method so `@reflect/core` can call them without importing `@tauri-apps` directly.
+  </Step>
+</Steps>
+
+## The CLI sidecar
+
+The `reflect` CLI (the read/discovery tool built in `apps/cli/`) is bundled as a **Tauri sidecar** — a companion binary that ships inside the app bundle and is invoked by the Rust shell at runtime.
+
+The sidecar is staged during the build process by `apps/desktop/scripts/build-sidecar.ts`, which compiles the CLI and copies the platform-specific binary into `apps/desktop/src-tauri/binaries/` with the correct target-triple suffix that Tauri expects.
+
+```bash
+# Stage the sidecar manually (required before cargo test --workspace)
+pnpm --filter @reflect/desktop sidecar
+
+# Tauri dev and build stage it automatically
+pnpm tauri dev
+pnpm tauri build
+```
+
+<Warning>
+Before running any `cargo build`, `cargo check`, or `cargo test` command that compiles the `reflect-open` desktop crate, you must stage the sidecar first. Tauri's build script checks that the sidecar binaries exist and fails with a "resource path doesn't exist" error if they are missing.
+</Warning>
+
+## Design principle: thin Rust, rich TypeScript
+
+The Rust shell is intentionally thin. A Rust command is a wrapper over a native OS primitive — it reads a file, queries the keychain, or starts a file watcher. It does not contain product rules.
+
+All decisions about *what* to do with those primitives — which notes to index, what context to send to an AI provider, how to enforce `private: true`, how to resolve a backlink — live in `@reflect/core`. This separation keeps product logic testable, readable, and reusable across desktop and mobile targets without touching the native shell.

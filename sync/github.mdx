@@ -1,0 +1,77 @@
+---
+title: "Back up Reflect notes to GitHub with versioned git history"
+sidebarTitle: "GitHub Backup"
+description: "Connect GitHub in Reflect Settings to back up your notes as a private git repository. Versioned history, sync across devices, and conflict handling included."
+---
+
+Reflect's GitHub backup stores your entire graph as a private git repository you own. Every save produces a commit, you get a full version history of every note, and the same repository keeps multiple Macs in sync with the same pull/merge logic Reflect uses for iCloud.
+
+## Connecting GitHub
+
+<Steps>
+  <Step title="Open Backup settings">
+    Go to **Settings → Backup → Connect GitHub…**. Reflect launches the OAuth device flow — a code appears in the app and you enter it at `github.com/login/device` in your browser.
+  </Step>
+  <Step title="Authorize Reflect">
+    Grant repository access. The token is stored in your **OS keychain** — never in your notes, `.reflect/`, or git history.
+  </Step>
+  <Step title="Repository is created">
+    Reflect creates a new repository under your account. It is **private by default**. Making it public requires an explicit confirmation step.
+  </Step>
+  <Step title="Backup begins">
+    The initial push uploads your graph. From this point, Reflect backs up automatically a few moments after you stop typing and also on app launch and focus.
+  </Step>
+</Steps>
+
+## How sync works
+
+<CardGroup cols={2}>
+  <Card title="Automatic backup" icon="cloud-arrow-up">
+    A commit is pushed a few moments after each editing session. You never have to remember to back up.
+  </Card>
+  <Card title="Pull on launch and focus" icon="rotate">
+    Reflect pulls and merges the remote on every app launch and every time the window regains focus, keeping multiple Macs up to date.
+  </Card>
+  <Card title="Conflict handling" icon="code-merge">
+    Pull conflicts use the same deterministic merge ladder as iCloud — three-way merge, metadata merge, and labeled conflict markers as a last resort.
+  </Card>
+  <Card title="Keychain auth" icon="key">
+    Your GitHub token lives in the OS keychain. It is scoped to repository access and never appears in any file Reflect touches.
+  </Card>
+</CardGroup>
+
+## Private notes and backup
+
+<Warning>
+  Notes marked `private: true` **are included in the git backup**. The `private` flag blocks external services — AI chat, audio enrichment, browser capture enrichment — from reading that note's content. It does not exclude the note from your own repository. Excluding private notes from backup would silently lose them; keeping them in is the safe default. Use repository-level access controls (a private repo, branch protection, access tokens) to protect backup privacy.
+</Warning>
+
+## The `.reflect/` directory
+
+<Note>
+  The `.reflect/` directory — Reflect's local SQLite index and runtime data — is listed in `.gitignore` and never enters a commit. If you clone the repository on a new machine and open it as a graph, Reflect rebuilds the index automatically from your Markdown files. You never need to commit or restore it.
+</Note>
+
+## Restoring on a new machine
+
+<Steps>
+  <Step title="Clone your repository">
+    ```bash
+    git clone git@github.com:you/your-notes-repo.git ~/notes
+    ```
+  </Step>
+  <Step title="Open as a graph">
+    In Reflect, choose **Open Graph…** and select `~/notes`. Reflect recognizes the existing remote and adopts it automatically.
+  </Step>
+  <Step title="Index rebuilds">
+    Search, backlinks, and tags rebuild from your Markdown files in the background. No data is lost.
+  </Step>
+</Steps>
+
+## Stopping backup
+
+Go to **Settings → Backup → Stop backing up**. This drops the `origin` remote from the local repository — your git history stays intact on disk and on GitHub. You can reconnect at any time with the same guided flow.
+
+## iCloud and GitHub are mutually exclusive
+
+A graph syncs through iCloud Drive **or** a git remote — not both. If your graph is currently in iCloud, moving it to git disconnects iCloud first. See the [iCloud sync guide](/sync/icloud) for details on switching.

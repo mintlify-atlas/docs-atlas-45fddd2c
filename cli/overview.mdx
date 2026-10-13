@@ -1,0 +1,82 @@
+---
+title: "reflect CLI: read and discover your notes from the terminal"
+sidebarTitle: "Overview"
+description: "The reflect CLI searches, shows, and resolves notes directly from your Markdown graph — no running app required. Bundled with the desktop app on macOS."
+---
+
+The `reflect` CLI is a self-contained read and discovery tool that works directly over your Reflect graph folder. It reads your `.md` files and opens `.reflect/index.sqlite` in strict read-only mode — no running desktop app required, no daemon, no network. It is designed to be a stable, deterministic surface for scripts, editors, and AI agents alike.
+
+## What it is
+
+A Reflect **graph** is an ordinary folder of Markdown files. The CLI navigates that folder using the same path conventions, frontmatter rules, and title-derivation logic as the desktop app. It exposes five commands:
+
+| Command | What it does |
+|---------|--------------|
+| `reflect today` | Print today's daily note |
+| `reflect search <query>` | Ranked full-text search over the index |
+| `reflect show <note>` | Print a note by date, path, title, or alias |
+| `reflect path <note>` | Resolve a note to its absolute path |
+| `reflect open <note>` | Open a note in the app via a `reflect://` deep link |
+
+## The CLI never writes
+
+Markdown files are the write path for your notes. The CLI is read-only by design: it never creates, modifies, or deletes any file. The search index (`.reflect/index.sqlite`) is refreshed exclusively by the desktop app; the CLI reads it but never runs the indexer itself.
+
+## Where it lives
+
+The CLI is bundled with the desktop app as a Tauri sidecar binary:
+
+- **macOS:** `Reflect.app/Contents/MacOS/reflect`
+- **Linux (`.deb`):** `/usr/bin/reflect`
+
+For local development, you can install it directly from the monorepo:
+
+```bash
+cargo install --path apps/cli
+```
+
+## Exit codes
+
+Every command uses a consistent set of exit codes so scripts can branch on them reliably.
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Runtime error (no graph found, IO failure, SQL failure) |
+| `2` | Usage error (bad flags or arguments) |
+| `3` | Note not found, or note is private |
+| `4` | Search index missing or unusable (`search` only) |
+
+## Privacy
+
+Notes with `private: true` in their frontmatter are completely invisible through the CLI — no content is returned, no path is revealed, no search hits appear. There is no flag that overrides this. The CLI reads the resolved file's own frontmatter directly (never just the index row), so a stale index cannot leak a note that was just marked private. Any attempt to access a private note exits with code `3` and prints an explanation to stderr.
+
+## Output contract
+
+The CLI follows a strict output discipline:
+
+- **stdout carries only data** — note content, paths, or JSON. Nothing else.
+- **stderr carries all warnings and errors** — staleness warnings, ambiguity notices, and error messages.
+
+The `--json` flag is available on all five commands and emits stable JSON shapes. Field names and exit codes are locked by the integration test suite (`apps/cli/tests/cli.rs`) — these are the agent/scripting contract. New fields may be added in the future, but existing field names will not change meaning.
+
+<Note>
+  The `--json` flag is the recommended interface for scripting and agent integration. See the [JSON Output](/cli/json-output) page for the full shape of every command's output.
+</Note>
+
+## Explore the CLI
+
+<CardGroup cols={2}>
+  <Card title="Commands" icon="terminal" href="/cli/commands">
+    Full reference for all five commands — flags, exit codes, and JSON output examples for each.
+  </Card>
+  <Card title="Graph Resolution" icon="folder-tree" href="/cli/graph-resolution">
+    How the CLI locates your graph folder via flag, environment variable, or directory walk.
+  </Card>
+  <Card title="JSON Output" icon="brackets-curly" href="/cli/json-output">
+    Stable JSON shapes for all five commands — safe for scripts and AI agents.
+  </Card>
+  <Card title="Agent Skill" icon="robot" href="/automation/agent-skill">
+    How Settings → Agents installs the per-graph skill file that teaches coding agents this contract.
+  </Card>
+</CardGroup>

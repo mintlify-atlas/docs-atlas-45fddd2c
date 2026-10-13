@@ -1,0 +1,121 @@
+---
+title: "Build Reflect from source on macOS"
+sidebarTitle: "Building from Source"
+description: "Set up your development environment to build Reflect from source. Requires a Rust toolchain, Node.js with pnpm 10, and Xcode Command Line Tools."
+---
+
+Reflect's desktop app combines a Vite/React frontend with a Tauri 2 Rust native shell. Both toolchains need to be present before you can run the full app. This page walks through everything from prerequisites to production release builds.
+
+## Prerequisites
+
+You need three things installed before cloning the repo:
+
+- **Rust toolchain** — install via [rustup.rs](https://rustup.rs). A recent stable release is sufficient; nightly is not required.
+- **Node.js with pnpm 10** — enable pnpm through Corepack (ships with Node.js 16+):
+  ```bash
+  corepack enable
+  ```
+- **Xcode Command Line Tools** — required for the macOS and iOS build toolchains:
+  ```bash
+  xcode-select --install
+  ```
+
+## Main setup
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/team-reflect/reflect-open.git
+    cd reflect-open
+    ```
+  </Step>
+  <Step title="Enable Corepack and install dependencies">
+    ```bash
+    corepack enable
+    pnpm install
+    ```
+    Corepack pins you to the exact pnpm version declared in `package.json`. Running `pnpm install` after that installs all workspace packages and links internal dependencies.
+  </Step>
+  <Step title="Start the development server">
+    Choose the mode that fits your current task:
+
+    ```bash
+    pnpm dev          # Vite only — no native shell, instant startup
+    pnpm tauri dev    # Full Tauri app with hot reload
+    pnpm tauri:dev    # "Reflect Dev" flavor — green icon, own app identifier
+    ```
+
+    See the [Development commands](#development-commands) section below for the full list.
+  </Step>
+</Steps>
+
+<Note>
+  `pnpm dev` starts a Vite dev server at [http://localhost:1420](http://localhost:1420). Add `?platform=ios` to the URL to preview the mobile UI tree in a plain browser — this is a dev-only mode that uses an in-memory bridge and a seeded demo graph, so no native shell is required.
+</Note>
+
+## Development commands
+
+All commands are run from the repository root unless noted otherwise.
+
+```bash
+pnpm dev              # Vite only (http://localhost:1420), no native shell
+pnpm tauri dev        # Full Tauri app with hot reload (stages the CLI sidecar first)
+pnpm tauri:dev        # Reflect Dev flavor — green icon, own identifier, coexists with Reflect
+pnpm build            # Turbo build pipeline → apps/desktop/dist/
+pnpm tauri build      # Native app bundle including the reflect CLI sidecar
+```
+
+`pnpm tauri:dev` is useful when you want to run a dev build alongside an installed copy of Reflect without them conflicting — the Dev flavor uses a separate bundle identifier and data directory.
+
+## iOS simulator
+
+The iOS app is the Tauri iOS target of `apps/desktop`, not a separate package. Always use the wrapper script from the repo root — do not run plain `tauri ios dev` directly, because debug builds need the dev-flavor config overlay.
+
+```bash
+pnpm tauri:ios:dev "iPhone 17 Pro"
+```
+
+To list all available simulator device names:
+
+```bash
+xcrun simctl list devices available
+```
+
+<Note>
+  The first simulator run can be quiet for several minutes while Xcode compiles Rust, Swift plugin code, and native dependencies. Dev builds appear as **Reflect Dev** with bundle identifier `app.reflect.ios.dev`.
+</Note>
+
+## TestFlight builds
+
+Use the release helper rather than hand-rolling `tauri ios build` and `altool`:
+
+```bash
+pnpm release:ios --build-number=123
+```
+
+The helper verifies the IPA bundle identifier and `ITSAppUsesNonExemptEncryption=false` before uploading. See `docs/ios-testflight.md` in the repo for App Store Connect setup and CI secret configuration.
+
+## Staging sidecars for bare Cargo commands
+
+`pnpm tauri dev` and `pnpm tauri build` stage the sidecar binaries (the `reflect` CLI and `reflect-capture-host`) automatically. If you want to run `cargo build`, `cargo check`, `cargo test`, or `clippy` directly — including `--workspace` commands — you must stage them once first:
+
+```bash
+pnpm --filter @reflect/desktop sidecar
+cargo test --workspace
+```
+
+Without this step, `tauri-build` fails with a message like:
+
+```
+resource path binaries/reflect-<triple> doesn't exist
+```
+
+## Production macOS release
+
+Building a signed, notarized macOS app for distribution requires a Developer ID certificate and notarization credentials configured in your environment. Once those are in place:
+
+```bash
+pnpm release:macos
+```
+
+See `docs/macos-distribution.md` in the repo for certificate setup, keychain configuration, and the full notarization workflow.

@@ -1,0 +1,120 @@
+---
+title: "Wiki links and backlinks: association-first notes"
+sidebarTitle: "Wiki Links & Backlinks"
+description: "Use [[wiki links]] to connect notes in Reflect. Every link automatically creates a backlink, letting you trace relationships across your graph."
+---
+
+Reflect organizes notes through association, not folders. Instead of filing a note about a project under a particular directory, you link it with `[[wiki links]]`. Every link you create is two-way — the linked note automatically shows what points back to it — so your graph of knowledge grows without any deliberate maintenance.
+
+## Creating wiki links
+
+Type `[[` anywhere in a note to open the link autocomplete. As you type, Reflect searches your existing notes by title and alias. Select a match to create a link to that note, or keep typing to create a link to a new note that doesn't exist yet.
+
+```markdown
+Met with [[Sarah Chen]] today to discuss [[Project Apollo]].
+Notes from the call are in [[2026-06-08]].
+```
+
+Pressing Enter on an unresolved link (one that doesn't match any existing note) creates the new note immediately. The new note opens pre-linked and ready to fill in.
+
+<Note>
+  Wiki link resolution happens at query time against the index — it matches by
+  title and alias, never by filename. Renaming a note breaks zero links by
+  construction.
+</Note>
+
+## Links resolve by title, not path
+
+`[[Meeting Notes]]` resolves to whichever note has "Meeting Notes" as its title or alias — not to a specific file path. When Reflect renames a file on disk (because you changed the note's title), all existing `[[wiki links]]` still point to the same note. The old title is automatically saved as an alias so even external edits resolve correctly.
+
+This is the keystone of Reflect's file model: because links never reference filenames, you can rename and reorganize notes freely.
+
+## Aliases
+
+A note can have multiple names. Aliases let different `[[wiki links]]` all resolve to the same note:
+
+<Tabs>
+  <Tab title="Frontmatter aliases">
+    Add an `aliases:` list to a note's YAML frontmatter:
+
+    ```yaml
+    ---
+    id: 01hzy3abc123def456ghi789jk
+    aliases:
+      - Mum
+      - Charlotte MacCaw
+    ---
+    ```
+
+    Any of `[[Mum]]`, `[[Charlotte MacCaw]]`, or the note's actual title all resolve to this note.
+  </Tab>
+  <Tab title="V1-style title alias">
+    Notes with a `//` separator in their title expose both segments as aliases:
+
+    ```
+    Charlotte MacCaw // Mum
+    ```
+
+    `[[Charlotte MacCaw]]` and `[[Mum]]` both resolve to this note. The CLI and
+    the app display the first segment as the primary title.
+  </Tab>
+</Tabs>
+
+When you rename a note inside Reflect, the old title is automatically recorded as an alias so nothing breaks.
+
+## Backlinks: incoming links
+
+Every note shows the notes that link to it. This ambient context is always visible while you write — you don't have to search for it. If you open a note about a person and see ten daily notes linking to them, you have an instant history of every interaction you captured.
+
+Backlinks are derived from the index, which is rebuilt from your Markdown files whenever the app runs. There is no special syntax required — every `[[wiki link]]` in any note automatically contributes a backlink to the linked note.
+
+## Date links
+
+Daily notes participate in the wiki link graph. Link to a specific day by its ISO date:
+
+```markdown
+See also: [[2026-06-08]]
+```
+
+This resolves to `daily/2026-06-08.md` and creates a backlink on that daily note. Date links work in both directions — a daily note can link to a person or project, and that person/project note will show the daily note in its backlinks.
+
+## Note identity and deep links
+
+Every note Reflect creates carries a stable `id` in its frontmatter — a [ULID](https://github.com/ulid/spec) that never changes, even across renames and syncs:
+
+```yaml
+---
+id: 01hzy3abc123def456ghi789jk
+title: Project Apollo
+---
+```
+
+This identity powers deep links. Use **Copy deep link** (`⌥⌘L`) to copy a `reflect://note/…` URL to the clipboard. For notes that predate stable IDs, the first copy mints a new `id:` into the frontmatter automatically.
+
+Deep link resolution order for `reflect://note/<target>`:
+
+1. Frontmatter `id` (ULID — survives all renames)
+2. Calendar-valid ISO date → that daily note
+3. Graph-relative path (`notes/foo.md`)
+4. Title match (case-insensitive)
+5. Alias match (`aliases:` frontmatter or `//` title segment)
+
+```text
+reflect://note/01hzy3abc123def456ghi789jk   ← most durable, id-based
+reflect://note/2026-06-08                   ← daily note by date
+reflect://note/Project%20Apollo             ← title resolution
+```
+
+<Tip>
+  Always use **Copy deep link** (`⌥⌘L`) to generate links you'll store in
+  other apps or scripts. The id-based form survives any rename the note ever
+  undergoes.
+</Tip>
+
+## Linking to notes that don't exist yet
+
+You can write `[[Future Project]]` before that note exists. The link renders as unresolved (visually distinct) until a note with that title is created. Click an unresolved link to create the note immediately, pre-titled and ready to fill in. The backlink from the original note is established the moment the new note is indexed.
+
+## Wiki links vs. standard Markdown links
+
+Reflect supports both `[[wiki links]]` and standard `[text](url)` Markdown links. Use standard links for external URLs and file/path references. Use wiki links for everything inside your graph — they get autocomplete, backlinks, rename tracking, and deep-link generation that standard Markdown links do not.

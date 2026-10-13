@@ -1,0 +1,152 @@
+---
+title: "JSON output format for reflect CLI scripting and agents"
+sidebarTitle: "JSON Output"
+description: "The reflect CLI's --json flag emits stable JSON shapes for all five commands. Field names and exit codes are locked by tests — safe for scripting and AI agents."
+---
+
+Every `reflect` CLI command accepts a `--json` flag that switches stdout from human-readable text to a structured JSON object. This output is the official scripting and agent contract: field names and exit codes are locked by the integration test suite in `apps/cli/tests/cli.rs` and will not change meaning across releases. New fields may be added in the future, but no existing field will be renamed, removed, or retyped.
+
+<Note>
+  Private notes always return exit code `3` — no content, no path, and no URL is ever written to stdout. This cannot be overridden by any flag.
+</Note>
+
+## Output discipline
+
+- **stdout** carries only data — the JSON object and nothing else.
+- **stderr** carries all warnings and errors — staleness notices, ambiguity messages, and error text from non-zero exits.
+
+This split makes it safe to capture stdout with `$()` or process substitution and trust that it contains only the JSON payload.
+
+## JSON shapes by command
+
+### `reflect today --json`
+
+Full note content for today's daily note:
+
+```jsonc
+// reflect today --json
+{
+  "date": "2026-06-11",
+  "path": "daily/2026-06-11.md",
+  "absolutePath": "/…/graph/daily/2026-06-11.md",
+  "title": "2026-06-11",
+  "content": "…"
+}
+```
+
+### `reflect today --path --json`
+
+Path-only output, with an existence flag. `title` and `content` are omitted:
+
+```jsonc
+// reflect today --path --json
+{ "date": "…", "path": "…", "absolutePath": "…", "exists": false }
+```
+
+### `reflect search --json`
+
+Ranked results list. `stale` is `true` if any files on disk diverge from the index (a staleness warning also appears on stderr, but results are still returned):
+
+```jsonc
+// reflect search "meeting notes" --json
+{
+  "query": "meeting notes",
+  "stale": false,
+  "results": [
+    { "path": "notes/standup.md", "title": "Standup", "snippet": "…meeting notes…", "score": -1.94 }
+  ]
+}
+```
+
+Results without a body match have an empty `snippet` string. `score` is a BM25 score; lower (more negative) values are more relevant. Title-prefix recall scores `0`.
+
+### `reflect show --json`
+
+Full note content for a resolved note. `date` is `null` for non-daily notes:
+
+```jsonc
+// reflect show "Project X" --json   ("date" is null for non-dailies)
+{ "date": null, "path": "notes/project-x.md", "absolutePath": "…", "title": "Project X", "content": "…" }
+```
+
+### `reflect path --json`
+
+Absolute path only, with an existence flag. `date` appears only for daily note resolutions:
+
+```jsonc
+// reflect path 2099-01-01 --json   ("date" only appears for dailies)
+{ "date": "2099-01-01", "path": "daily/2099-01-01.md", "absolutePath": "…", "exists": false }
+```
+
+### `reflect open --json`
+
+Deep link URL and launch status. `launched` is `false` when `--print` is passed (the OS opener was not called):
+
+```jsonc
+// reflect open "Project X" --json --print   ("date" only appears for dailies)
+{ "path": "notes/project-x.md", "url": "reflect://note/01hzy3…", "launched": false }
+```
+
+## Field reference
+
+| Field | Commands | Type | Notes |
+|-------|----------|------|-------|
+| `date` | `today`, `show`, `path`, `open` | `string \| null` | `YYYY-MM-DD` for daily notes; `null` or absent for others |
+| `path` | all | `string` | Graph-relative path (`daily/…` or `notes/…`) |
+| `absolutePath` | `today`, `show`, `path` | `string` | Full filesystem path |
+| `title` | `today`, `show` | `string` | Derived note title |
+| `content` | `today`, `show` | `string` | Raw Markdown content |
+| `exists` | `today --path`, `path` | `boolean` | Whether the file is already on disk |
+| `query` | `search` | `string` | The query string as received |
+| `stale` | `search` | `boolean` | `true` if index is out of date with files on disk |
+| `results` | `search` | `array` | Ordered list of search result objects |
+| `results[].path` | `search` | `string` | Graph-relative path of the matching note |
+| `results[].title` | `search` | `string` | Full note title |
+| `results[].snippet` | `search` | `string` | Body excerpt around the match, or empty string |
+| `results[].score` | `search` | `number` | BM25 relevance score (lower is more relevant) |
+| `url` | `open` | `string` | The `reflect://` deep link URL |
+| `launched` | `open` | `boolean` | Whether the OS URL opener was called |
+
+## Using JSON output in shell scripts
+
+### With Python
+
+```bash
+# Get today's note absolute path
+reflect today --path --json | python3 -c "import sys,json; print(json.load(sys.stdin)['absolutePath'])"
+
+# Search and extract titles
+reflect search "project" --limit 5 --json | python3 -c "import sys,json; [print(r['title']) for r in json.load(sys.stdin)['results']]"
+```
+
+### With jq
+
+```bash
+# Extract titles from search results
+reflect search "meeting" --json | jq '.results[].title'
+
+# Get today's absolute path as a plain string
+reflect today --path --json | jq -r '.absolutePath'
+
+# Open today's note in your editor
+$EDITOR "$(reflect today --path --json | jq -r '.absolutePath')"
+
+# List all matching paths from a search
+reflect search "standup" --json | jq -r '.results[].path'
+```
+
+## Agent integration
+
+The five commands combined with `--json` are the supported automation surface for coding agents and AI workflows. When you enable **Settings → Agents** in the desktop app, Reflect installs a per-graph skill file at `~/.agents/skills/reflect-<graph-slug>/SKILL.md`. That file teaches the agent:
+
+- The graph's root directory
+- The bundled CLI's path
+- All five commands and their flags
+- The JSON field contracts above
+- The privacy rules (private notes are never accessible through this surface)
+
+The skill file carries a `reflect-managed` SHA-256 marker so the app can refresh its own installs without overwriting a hand-edited file. See [Agent Skill](/automation/agent-skill) for the full reference.
+
+<Tip>
+  When building agent workflows, prefer the `--json` flag over parsing human-readable output. The human-readable format may change for readability improvements; the JSON contract is stable by test.
+</Tip>
