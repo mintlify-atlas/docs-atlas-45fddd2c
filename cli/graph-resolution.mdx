@@ -1,7 +1,7 @@
 ---
-title: "How the reflect CLI finds your graph folder"
+title: "How the reflect CLI finds your Reflect graph folder"
 sidebarTitle: "Graph Resolution"
-description: "The reflect CLI finds your graph via --graph flag, $REFLECT_GRAPH env var, or by walking up from the current directory — deterministic for scripts and agents."
+description: "Locate your graph with --graph, $REFLECT_GRAPH, or a directory walk-up. The reflect CLI is always deterministic — no fallback to the desktop app."
 ---
 
 Before any command can run, the `reflect` CLI must locate your graph folder. A **graph** is any directory that contains a `.reflect/` subdirectory — that hidden directory is what distinguishes a Reflect graph from an ordinary folder. Resolution is deterministic and follows a fixed priority order so that scripts and agents always get a predictable result.

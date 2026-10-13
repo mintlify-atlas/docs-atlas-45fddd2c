@@ -1,7 +1,7 @@
 ---
 title: "Mark notes private to block all external AI access"
 sidebarTitle: "Private Notes"
-description: "Add private: true to any note's frontmatter to hard-block its content from every external service — AI chat, audio transcription, and browser capture enrichment."
+description: "Add private: true to a note's frontmatter to block its content from every external service — AI chat, audio enrichment, browser capture, and the CLI."
 ---
 
 The `private: true` frontmatter flag is a hard block at the code level. It prevents any external service from seeing a note's content — AI chat tools, browser capture enrichment, and the CLI all enforce it. The check reads the file's own frontmatter from disk at call time, not just a cached index row, so the protection is immediate.

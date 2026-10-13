@@ -1,5 +1,5 @@
 ---
-title: "Build Reflect from source on macOS"
+title: "Build Reflect from source: prerequisites and dev commands"
 sidebarTitle: "Building from Source"
 description: "Set up your development environment to build Reflect from source. Requires a Rust toolchain, Node.js with pnpm 10, and Xcode Command Line Tools."
 ---
@@ -60,7 +60,7 @@ All commands are run from the repository root unless noted otherwise.
 ```bash
 pnpm dev              # Vite only (http://localhost:1420), no native shell
 pnpm tauri dev        # Full Tauri app with hot reload (stages the CLI sidecar first)
-pnpm tauri:dev        # Reflect Dev flavor — green icon, own identifier, coexists with Reflect
+pnpm tauri:dev        # Reflect Dev flavor — green icon, own identifier, coexists with Reflect / Reflect Beta
 pnpm build            # Turbo build pipeline → apps/desktop/dist/
 pnpm tauri build      # Native app bundle including the reflect CLI sidecar
 ```

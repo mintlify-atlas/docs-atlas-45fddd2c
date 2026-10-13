@@ -1,7 +1,7 @@
 ---
-title: "Reflect architecture: Tauri 2, React, Rust, and local-first data"
+title: "Reflect architecture: Tauri 2, React, and local-first data"
 sidebarTitle: "Architecture"
-description: "Understand Reflect's architecture: a React/TypeScript frontend in a Tauri 2 Rust shell, with all business logic in @reflect/core and plain Markdown as the source of truth."
+description: "A React/TypeScript frontend in a Tauri 2 Rust shell, all business logic in @reflect/core, and plain Markdown as the source of truth."
 ---
 
 Reflect is a **Turborepo + pnpm monorepo** wrapped around a **Tauri 2** desktop and mobile app. The React/TypeScript frontend is bundled by Vite and embedded in a Rust native shell. All Rust crates live in a single Cargo workspace rooted at the repository root, so both the JavaScript toolchain and the Rust toolchain share one consistent build graph.

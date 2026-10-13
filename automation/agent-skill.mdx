@@ -4,19 +4,19 @@ sidebarTitle: "Agent Skill"
 description: "Settings → Agents installs a SKILL.md file that teaches AI coding agents the reflect CLI contract — graph root, CLI path, commands, and privacy rules."
 ---
 
-Reflect can install a skill file that teaches AI coding agents — Claude, Cursor, Copilot, or any tool that supports `~/.agents` discovery — exactly how to interact with your graph. The skill covers the graph's root path, the bundled CLI's location, every command and its flags, the stable JSON schemas, exit codes, and the privacy rules that protect your private notes.
+Reflect can install a skill file that teaches AI coding agents — any tool that supports `~/.agents` discovery — exactly how to interact with your graph. The skill covers the graph's root path, the bundled CLI's location, every command and its flags, the stable JSON schemas, exit codes, and the privacy rules that protect your private notes.
 
 ## What is the agent skill?
 
 The skill is a single Markdown file installed at:
 
-```
+```text
 ~/.agents/skills/reflect-<graph-slug>/SKILL.md
 ```
 
 For example, if your graph folder is called `my-notes`, the skill lives at:
 
-```
+```text
 ~/.agents/skills/reflect-my-notes/SKILL.md
 ```
 
@@ -46,10 +46,10 @@ The graph slug is derived from the graph folder name using the same slug algorit
     In the Reflect app, open **Settings** (⌘,) and navigate to the **Agents** tab.
   </Step>
   <Step title="Install the skill">
-    Click **Install skill**. Reflect writes the `SKILL.md` file to `~/.agents/skills/reflect-<graph-slug>/` and confirms the path on screen.
+    Reflect writes the `SKILL.md` file to `~/.agents/skills/reflect-<graph-slug>/`.
   </Step>
   <Step title="Agents pick it up automatically">
-    Any coding agent that supports `~/.agents` discovery — including Claude Code, Cursor, and GitHub Copilot Workspace — will find and load the skill the next time it starts or refreshes its context. No further configuration is required.
+    Any coding agent that supports `~/.agents` discovery will find and load the skill the next time it starts or refreshes its context. No further configuration is required.
   </Step>
 </Steps>
 

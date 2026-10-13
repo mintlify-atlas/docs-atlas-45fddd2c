@@ -1,7 +1,7 @@
 ---
 title: "JSON output format for reflect CLI scripting and agents"
 sidebarTitle: "JSON Output"
-description: "The reflect CLI's --json flag emits stable JSON shapes for all five commands. Field names and exit codes are locked by tests — safe for scripting and AI agents."
+description: "The --json flag emits stable JSON shapes for all five reflect CLI commands. Field names and exit codes are locked by tests — safe for scripts and agents."
 ---
 
 Every `reflect` CLI command accepts a `--json` flag that switches stdout from human-readable text to a structured JSON object. This output is the official scripting and agent contract: field names and exit codes are locked by the integration test suite in `apps/cli/tests/cli.rs` and will not change meaning across releases. New fields may be added in the future, but no existing field will be renamed, removed, or retyped.

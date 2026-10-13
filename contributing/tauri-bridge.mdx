@@ -190,11 +190,11 @@ First-party plugins live in `plugins/` at the repo root. Each exposes a focused 
 
 | Plugin | Platform | Purpose |
 |---|---|---|
-| `tauri-plugin-app-store` | macOS, iOS | App settings store (StoreKit 2 / App Store receipt checks) |
+| `tauri-plugin-app-store` | iOS | StoreKit 2 channel detection (`AppTransaction`), Restore Purchases, and offer-code redemption |
 | `tauri-plugin-keyboard` | iOS | Software keyboard appearance and height events |
 | `tauri-plugin-mobile-haptics` | iOS | Haptic feedback via `UIImpactFeedbackGenerator` |
 | `tauri-plugin-recording` | iOS | Audio recording via `AVAudioRecorder`, survives webview interruptions |
-| `tauri-plugin-web-auth` | iOS | GitHub OAuth device flow via `ASWebAuthenticationSession` |
+| `tauri-plugin-web-auth` | iOS | OAuth-style sign-in via `ASWebAuthenticationSession` (returns the callback URL) |
 
 Plugins are conditionally compiled using Tauri's `#[cfg(mobile)]` and `#[cfg(target_os = "ios")]` guards in `lib.rs`, so desktop builds are not affected by mobile-only plugins.
 

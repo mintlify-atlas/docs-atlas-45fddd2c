@@ -1,5 +1,5 @@
 ---
-title: "Daily notes: capture everything in today's note"
+title: "Daily notes: how Reflect stores and navigates daily notes"
 sidebarTitle: "Daily Notes"
 description: "Reflect opens to today's daily note on every launch. Learn how daily notes work, how they're stored, and how to navigate between days."
 ---
@@ -10,13 +10,13 @@ Reflect is built around one simple idea: you capture life chronologically, then 
 
 Each daily note is a plain Markdown file at a predictable path inside your graph:
 
-```
+```text
 daily/YYYY-MM-DD.md
 ```
 
 For example, June 8, 2026 is stored as:
 
-```
+```text
 daily/2026-06-08.md
 ```
 
@@ -57,7 +57,7 @@ Use the previous and next day navigation controls to move backward and forward t
 
 To link directly to a specific day from anywhere in your graph, use a date wiki link:
 
-```
+```markdown
 [[2026-06-08]]
 ```
 
@@ -122,7 +122,7 @@ Because daily notes are created lazily (the file doesn't exist until Reflect or 
 
 ## Graph layout at a glance
 
-```
+```text
 my-graph/
 ├── daily/
 │   ├── 2026-06-08.md   ← each day is a plain Markdown file
